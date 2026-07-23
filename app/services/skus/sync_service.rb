@@ -24,6 +24,7 @@ module Skus
       products = @client.product_library
       images = fetch_images
       count = upsert(products, images)
+      prune_absent(products)
 
       @sku_sync.mark_completed!(count)
       @sku_sync
@@ -34,6 +35,21 @@ module Skus
     end
 
     private
+
+    # Full-replace semantics: remove SKUs that are no longer in the catalog so a
+    # resync reconciles rather than only accumulating. SKUs still tagged in a
+    # photo are kept, so a processor's saved selections are never silently lost.
+    #
+    # Guarded against an empty/failed catalog response so a transient blank
+    # payload can't wipe the whole table.
+    def prune_absent(products)
+      api_codes = products.filter_map { |p| p["product_code"].presence }.uniq
+      return 0 if api_codes.empty?
+
+      removed = Sku.where.not(product_code: api_codes).where.missing(:photo_skus).delete_all
+      Rails.logger.info("[Skus::SyncService] pruned #{removed} stale SKUs") if removed.positive?
+      removed
+    end
 
     # Image metadata is best-effort: a failure fetching images must never fail
     # the whole catalog sync.

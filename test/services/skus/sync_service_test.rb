@@ -67,6 +67,38 @@ module Skus
       assert_not Sku.find_by(product_code: "AAA").image?
     end
 
+    test "prunes skus that are no longer in the catalog" do
+      Sku.create!(product_code: "STALE", short_description: "Gone from catalog")
+      sync = SkuSync.create!(status: :running)
+
+      Skus::SyncService.call(sync, client: FakeClient.new(products, images))
+
+      assert_nil Sku.find_by(product_code: "STALE")
+      assert Sku.find_by(product_code: "AAA")   # still in the catalog
+    end
+
+    test "keeps a stale sku that is still tagged in a photo" do
+      stale = Sku.create!(product_code: "STALE", short_description: "Tagged but gone")
+      photo = Photo.new(name: "Kitchen")
+      photo.image.attach(io: file_fixture("sample.png").open, filename: "sample.png", content_type: "image/png")
+      photo.save!
+      PhotoSku.create!(photo: photo, sku: stale)
+      sync = SkuSync.create!(status: :running)
+
+      Skus::SyncService.call(sync, client: FakeClient.new(products, images))
+
+      assert Sku.find_by(product_code: "STALE"), "referenced sku should be kept"
+    end
+
+    test "does not prune when the catalog response is empty" do
+      Sku.create!(product_code: "KEEP", short_description: "Existing")
+      sync = SkuSync.create!(status: :running)
+
+      Skus::SyncService.call(sync, client: FakeClient.new([], []))
+
+      assert Sku.find_by(product_code: "KEEP"), "empty response must not wipe the table"
+    end
+
     test "re-running updates existing skus rather than duplicating" do
       Sku.create!(product_code: "AAA", short_description: "Old")
       sync = SkuSync.create!(status: :running)
