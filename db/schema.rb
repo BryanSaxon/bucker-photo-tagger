@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_23_021835) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_23_034303) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -113,7 +113,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_23_021835) do
     t.string "attribute1_desc"
     t.string "category_code"
     t.datetime "created_at", null: false
+    t.string "image_file_id"
+    t.string "image_filename"
     t.string "image_flag"
+    t.string "image_mimetype"
+    t.integer "images_count", default: 0, null: false
     t.string "product_code", null: false
     t.string "short_description"
     t.string "source_modified_at"

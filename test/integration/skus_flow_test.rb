@@ -22,6 +22,27 @@ class SkusFlowTest < ActionDispatch::IntegrationTest
     assert_no_match "Faucet", @response.body
   end
 
+  test "sku show page renders catalog details and image metadata" do
+    sku = Sku.create!(product_code: "AAA", short_description: "Faucet", category_code: "07CabTop",
+      image_filename: "AAA.JPG", image_mimetype: "image/jpeg", image_file_id: "F-1", images_count: 3)
+    sign_in_as(@user)
+
+    get sku_path(sku)
+    assert_response :success
+    assert_match "Faucet", @response.body
+    assert_match "AAA.JPG", @response.body
+    assert_match "07CabTop", @response.body
+  end
+
+  test "sku show page handles a sku with no image" do
+    sku = Sku.create!(product_code: "NOIMG", short_description: "Plain")
+    sign_in_as(@user)
+
+    get sku_path(sku)
+    assert_response :success
+    assert_match "No image", @response.body
+  end
+
   test "triggering a sync enqueues the job and creates a running record" do
     sign_in_as(@user)
 

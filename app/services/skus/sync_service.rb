@@ -1,5 +1,6 @@
 module Skus
-  # Syncs the local Sku catalog from the NewStart /product_library endpoint.
+  # Syncs the local Sku catalog from the NewStart /product_library endpoint,
+  # enriched with image metadata from /product_images.
   #
   # The remote catalog is the source of truth and has no incremental "changed
   # since" parameter, so every run is a full re-fetch + upsert keyed on
@@ -21,7 +22,8 @@ module Skus
       @sku_sync.update!(status: :running, started_at: Time.current)
 
       products = @client.product_library
-      count = upsert(products)
+      images = fetch_images
+      count = upsert(products, images)
 
       @sku_sync.mark_completed!(count)
       @sku_sync
@@ -33,13 +35,47 @@ module Skus
 
     private
 
-    # Map raw API product hashes onto Sku columns and upsert in batches.
-    def upsert(products)
+    # Image metadata is best-effort: a failure fetching images must never fail
+    # the whole catalog sync.
+    def fetch_images
+      @client.product_images
+    rescue => e
+      Rails.logger.warn("[Skus::SyncService] image fetch failed: #{e.class}: #{e.message}")
+      []
+    end
+
+    # Build product_code => image metadata, choosing a representative (primary)
+    # image per product and counting how many live images it has.
+    def image_index(images)
+      by_code = Hash.new { |h, k| h[k] = [] }
+      images.each do |img|
+        code = img["product_code"].presence
+        next if code.nil? || img["isarchived"] || img["isdeleted"]
+        by_code[code] << img
+      end
+
+      by_code.transform_values do |imgs|
+        primary = imgs.find { |i| i["source_type"] == "Product" } || imgs.first
+        {
+          image_filename: primary["filename"],
+          image_mimetype: primary["filemimetype"],
+          image_file_id: primary["file_id"],
+          images_count: imgs.size
+        }
+      end
+    end
+
+    # Map raw API product hashes (plus image metadata) onto Sku columns and
+    # upsert in batches.
+    def upsert(products, images)
       now = Time.current
+      index = image_index(images)
+
       rows = products.filter_map do |product|
         code = product["product_code"].presence
         next unless code
 
+        meta = index[code] || {}
         {
           product_code: code,
           short_description: product["short_description"],
@@ -49,6 +85,10 @@ module Skus
           attribute1: product["attribute1"],
           image_flag: product["image"],
           source_modified_at: product["lastmoddatetime"],
+          image_filename: meta[:image_filename],
+          image_mimetype: meta[:image_mimetype],
+          image_file_id: meta[:image_file_id],
+          images_count: meta[:images_count] || 0,
           created_at: now,
           updated_at: now
         }
@@ -63,7 +103,8 @@ module Skus
         # update_only would produce a duplicate SET clause.
         Sku.upsert_all(batch, unique_by: :product_code, update_only:
           %i[short_description category_code subcategory_code attribute1_desc
-             attribute1 image_flag source_modified_at])
+             attribute1 image_flag source_modified_at
+             image_filename image_mimetype image_file_id images_count])
       end
 
       rows.size

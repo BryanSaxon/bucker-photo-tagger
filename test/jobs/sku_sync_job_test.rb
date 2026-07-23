@@ -1,13 +1,24 @@
 require "test_helper"
 
 class SkuSyncJobTest < ActiveJob::TestCase
-  test "runs the sync service for the given record" do
+  test "looks up the record and runs the sync service (no real network call)" do
     sync = SkuSync.create!(status: :running)
+    received = nil
 
-    # No API configured in test → the service should record a failure, not raise.
-    assert_nothing_raised do
-      SkuSyncJob.perform_now(sync.id)
+    # Swap the service for a stub so the job test never touches the real API.
+    original = Skus::SyncService.method(:call)
+    Skus::SyncService.define_singleton_method(:call) do |record|
+      received = record
+      record.mark_completed!(0)
     end
-    assert sync.reload.failed?
+
+    begin
+      SkuSyncJob.perform_now(sync.id)
+    ensure
+      Skus::SyncService.define_singleton_method(:call, original)
+    end
+
+    assert_equal sync.id, received.id
+    assert sync.reload.completed?
   end
 end

@@ -8,4 +8,11 @@ class SkusController < ApplicationController
     @category_codes = Sku.category_codes
     @latest_sync = SkuSync.latest
   end
+
+  # Detail page for a single SKU: catalog fields, variants, image metadata,
+  # and the photos it has been tagged in.
+  def show
+    @sku = Sku.find(params[:id])
+    @tagged_photos = @sku.photos.complete.recent.with_attached_image
+  end
 end

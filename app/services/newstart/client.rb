@@ -37,6 +37,13 @@ module Newstart
       get("/product_library").fetch("products", [])
     end
 
+    # Returns the full product-image index. Each entry carries a product_code,
+    # filename, filemimetype, file_id, source_type and variant attributes — but
+    # note this deployment exposes no endpoint to download the image bytes.
+    def product_images
+      get("/product_images").fetch("images", [])
+    end
+
     private
 
     def get(path)

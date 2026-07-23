@@ -10,7 +10,7 @@ Rails.application.routes.draw do
   end
 
   # SKU catalog library + manual sync trigger.
-  resources :skus, only: :index
+  resources :skus, only: %i[index show]
   resources :sku_syncs, only: :create
 
   root "photos#index"

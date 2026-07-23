@@ -31,16 +31,20 @@
             <th>Category</th>
             <th>Subcategory</th>
             <th>Variants</th>
+            <th style="text-align:center;">Img</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           <% @skus.each do |sku| %>
-            <tr>
-              <td class="mono" style="color:var(--gold-dark); font-weight:600;"><%= sku.product_code %></td>
+            <tr onclick="window.location='<%= sku_path(sku) %>'" style="cursor:pointer;">
+              <td><%= link_to sku.product_code, sku_path(sku), class: "mono", style: "color:var(--gold-dark); font-weight:600; text-decoration:none;" %></td>
               <td><%= sku.short_description %></td>
               <td class="text-mono-sm"><%= sku.category_code %></td>
               <td class="text-mono-sm"><%= sku.subcategory_code %></td>
               <td class="text-mono-sm"><%= sku.attribute1_desc.presence || "—" %></td>
+              <td class="text-mono-sm" style="text-align:center;"><%= sku.image? ? "🖼️" : "—" %></td>
+              <td class="text-mono-sm" style="text-align:right; color:var(--muted-2);">→</td>
             </tr>
           <% end %>
         </tbody>

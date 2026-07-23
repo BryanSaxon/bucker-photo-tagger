@@ -1,0 +1,96 @@
+<% content_for :title, "#{@sku.product_code} — SKU" %>
+
+<div style="margin-bottom:22px;">
+  <%= link_to "← Back to SKU Library", skus_path, class: "text-mono-sm", style: "text-decoration:none;" %>
+  <div style="display:flex; align-items:center; gap:12px; margin-top:10px; flex-wrap:wrap;">
+    <span class="mono" style="font:700 15px 'IBM Plex Mono',monospace; color:var(--gold-dark);"><%= @sku.product_code %></span>
+    <% if @sku.image? %>
+      <span class="badge badge--done"><span class="badge__dot"></span><%= pluralize(@sku.images_count, "image") %></span>
+    <% else %>
+      <span class="badge badge--neutral"><span class="badge__dot"></span>No image</span>
+    <% end %>
+  </div>
+  <h1 class="page-title" style="margin-top:10px;"><%= @sku.short_description.presence || "—" %></h1>
+</div>
+
+<div style="display:grid; grid-template-columns:minmax(0,2fr) minmax(260px,1fr); gap:22px; align-items:start;">
+  <div class="stack" style="gap:22px;">
+    <%# Catalog fields %>
+    <div class="panel card-pad">
+      <span class="eyebrow">Catalog details</span>
+      <table class="data-table" style="margin-top:12px;">
+        <tbody>
+          <tr><td class="label" style="margin:0; border:none;">Product code</td><td class="mono"><%= @sku.product_code %></td></tr>
+          <tr><td class="label" style="margin:0; border:none;">Description</td><td><%= @sku.short_description.presence || "—" %></td></tr>
+          <tr><td class="label" style="margin:0; border:none;">Category</td><td class="mono"><%= @sku.category_code.presence || "—" %></td></tr>
+          <tr><td class="label" style="margin:0; border:none;">Subcategory</td><td class="mono"><%= @sku.subcategory_code.presence || "—" %></td></tr>
+          <tr><td class="label" style="margin:0; border:none;">Source flag</td><td class="mono"><%= @sku.image_flag.presence || "—" %></td></tr>
+          <tr><td class="label" style="margin:0; border:none;">Last modified</td><td class="mono"><%= @sku.source_modified_at.presence || "—" %></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <%# Variants %>
+    <% if @sku.attribute_choices.any? %>
+      <div class="panel card-pad">
+        <span class="eyebrow"><%= @sku.attribute1_desc.presence&.chomp("**") || "Variants" %></span>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;">
+          <% @sku.attribute_choices.each do |choice| %>
+            <span class="chip" style="padding:6px 12px;"><%= choice %></span>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <%# Photos this SKU is tagged in %>
+    <div class="panel card-pad">
+      <span class="eyebrow">Tagged in <%= pluralize(@tagged_photos.size, "photo") %></span>
+      <% if @tagged_photos.any? %>
+        <div class="photo-grid" style="margin-top:14px; grid-template-columns:repeat(auto-fill,minmax(180px,1fr));">
+          <% @tagged_photos.each do |photo| %>
+            <%= link_to photo_path(photo), class: "photo-card" do %>
+              <span class="photo-card__thumb">
+                <% if photo.image.attached? %><%= image_tag photo.image, loading: "lazy", alt: photo.name %><% end %>
+              </span>
+              <div class="photo-card__body">
+                <span class="photo-card__name"><%= photo.name %></span>
+                <span class="photo-card__meta"><%= [photo.community, photo.floorplan&.display_name].compact.join(" · ").presence || "Tagged" %></span>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      <% else %>
+        <p class="text-mono-sm" style="margin-top:10px;">This SKU hasn’t been tagged in any completed photos yet.</p>
+      <% end %>
+    </div>
+  </div>
+
+  <%# Image metadata sidebar %>
+  <div class="panel card-pad">
+    <span class="eyebrow">Image</span>
+    <% if @sku.image? %>
+      <div style="margin-top:12px; aspect-ratio:4/3; border-radius:12px; background:var(--gutter); border:1px solid var(--border); display:grid; place-items:center; text-align:center; padding:16px;">
+        <div>
+          <div style="font-size:30px;">🖼️</div>
+          <div class="mono" style="font-size:12px; color:var(--muted); margin-top:6px; word-break:break-all;"><%= @sku.image_filename %></div>
+        </div>
+      </div>
+      <table class="data-table" style="margin-top:14px;">
+        <tbody>
+          <tr><td class="label" style="margin:0; border:none;">Filename</td><td class="mono" style="word-break:break-all;"><%= @sku.image_filename %></td></tr>
+          <tr><td class="label" style="margin:0; border:none;">Type</td><td class="mono"><%= @sku.image_mimetype.presence || "—" %></td></tr>
+          <tr><td class="label" style="margin:0; border:none;">Images</td><td class="mono"><%= @sku.images_count %></td></tr>
+          <tr><td class="label" style="margin:0; border:none;">File ID</td><td class="mono" style="font-size:10px; word-break:break-all;"><%= @sku.image_file_id %></td></tr>
+        </tbody>
+      </table>
+      <p class="text-mono-sm" style="margin-top:12px; line-height:1.5;">
+        The API provides image metadata but no downloadable image bytes in this deployment, so the picture can’t be rendered yet.
+      </p>
+    <% else %>
+      <div class="empty-state" style="padding:32px 12px;">
+        <div class="empty-state__icon">🚫</div>
+        <p class="text-mono-sm">No image on file for this SKU.</p>
+      </div>
+    <% end %>
+  </div>
+</div>

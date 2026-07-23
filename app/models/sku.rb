@@ -36,6 +36,12 @@ class Sku < ApplicationRecord
     attribute1.to_s.split(",").map(&:strip).reject(&:blank?)
   end
 
+  # Does the source catalog have an image on file for this SKU? (Metadata only —
+  # the API exposes no downloadable image bytes in this deployment.)
+  def image?
+    image_filename.present?
+  end
+
   # Distinct category codes present in the catalog, for filter dropdowns.
   def self.category_codes
     where.not(category_code: [ nil, "" ]).distinct.order(:category_code).pluck(:category_code)
