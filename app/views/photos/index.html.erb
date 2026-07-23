@@ -1,0 +1,72 @@
+<% content_for :title, "Photos" %>
+
+<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:22px; flex-wrap:wrap;">
+  <div>
+    <span class="eyebrow">Marketing photo library</span>
+    <h1 class="page-title" style="margin-top:6px;">Photos</h1>
+  </div>
+  <%= link_to new_photo_path, class: "btn btn--primary" do %>
+    <span style="font-size:16px; line-height:0;">＋</span> Upload photos
+  <% end %>
+</div>
+
+<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
+  <div class="segmented">
+    <%= link_to photos_path(q: @query.presence),
+          class: class_names("segmented__item", "is-active": !@show_completed) do %>
+      Needs processing <span class="segmented__count"><%= @unprocessed_count %></span>
+    <% end %>
+    <%= link_to photos_path(status: "complete", q: @query.presence),
+          class: class_names("segmented__item", "is-active": @show_completed) do %>
+      Completed <span class="segmented__count"><%= @complete_count %></span>
+    <% end %>
+  </div>
+
+  <%= form_with url: photos_path, method: :get, style: "display:flex; gap:8px; align-items:center;" do |f| %>
+    <%= f.hidden_field :status, value: (@show_completed ? "complete" : nil) %>
+    <%= f.search_field :q, value: @query, placeholder: "Search by name…", class: "input", style: "width:240px;" %>
+    <%= f.submit "Search", class: "btn btn--secondary" %>
+    <% if @query.present? %>
+      <%= link_to "Clear", photos_path(status: (@show_completed ? "complete" : nil)), class: "btn btn--ghost btn--sm" %>
+    <% end %>
+  <% end %>
+</div>
+
+<% if @photos.any? %>
+  <div class="photo-grid">
+    <% @photos.each do |photo| %>
+      <%= link_to photo_path(photo), class: "photo-card" do %>
+        <span class="photo-card__thumb">
+          <% if photo.image.attached? %>
+            <%= image_tag photo.image, loading: "lazy", alt: photo.name %>
+          <% end %>
+        </span>
+        <div class="photo-card__body">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <span class="photo-card__name"><%= photo.name %></span>
+            <%= render "photos/status_badge", photo: photo %>
+          </div>
+          <span class="photo-card__meta">
+            <% if photo.complete? %>
+              <%= [photo.community, photo.floorplan&.display_name].compact.join(" · ").presence || "Tagged" %>
+            <% else %>
+              Needs processing
+            <% end %>
+          </span>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+<% else %>
+  <div class="card empty-state">
+    <div class="empty-state__icon">🏷️</div>
+    <% if @query.present? %>
+      <p>No photos match “<%= @query %>”.</p>
+    <% elsif @show_completed %>
+      <p>No completed photos yet.</p>
+    <% else %>
+      <p style="margin-bottom:16px;">No photos waiting to be processed.</p>
+      <%= link_to "Upload your first photos", new_photo_path, class: "btn btn--primary" %>
+    <% end %>
+  </div>
+<% end %>

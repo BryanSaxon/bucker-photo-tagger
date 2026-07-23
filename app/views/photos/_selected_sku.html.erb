@@ -1,0 +1,16 @@
+<%# Mirrors the markup produced by processing_controller#rowHtml — keep in sync. %>
+<div class="selected-sku <%= 'is-pinned' if photo_sku.pinned? %>"
+     data-processing-target="selectedItem"
+     data-sku-id="<%= photo_sku.sku_id %>"
+     data-code="<%= photo_sku.sku.product_code %>"
+     data-desc="<%= photo_sku.sku.display_name %>">
+  <input type="hidden" name="photo[skus][][id]" value="<%= photo_sku.sku_id %>">
+  <input type="hidden" name="photo[skus][][pos_x]" value="<%= photo_sku.pos_x %>" data-role="pos_x">
+  <input type="hidden" name="photo[skus][][pos_y]" value="<%= photo_sku.pos_y %>" data-role="pos_y">
+  <span class="selected-sku__code"><%= photo_sku.sku.product_code %></span>
+  <span class="selected-sku__desc"><%= photo_sku.sku.display_name %></span>
+  <button type="button" class="btn btn--ghost btn--sm" data-action="processing#startPin" data-role="pin">
+    📍 <span data-role="pin-label"><%= photo_sku.pinned? ? "Pinned" : "Pin" %></span>
+  </button>
+  <button type="button" class="chip__remove" data-action="processing#removeSku" aria-label="Remove">×</button>
+</div>

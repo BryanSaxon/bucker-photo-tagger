@@ -25,8 +25,12 @@ Rails.application.configure do
     config.action_controller.perform_caching = false
   end
 
-  # Change to :null_store to avoid any caching.
-  config.cache_store = :memory_store
+  # Use the database-backed Solid Cache and Solid Queue in development so the
+  # local environment mirrors production and background jobs run through the DB.
+  config.cache_store = :solid_cache_store
+
+  config.active_job.queue_adapter = :solid_queue
+  config.solid_queue.connects_to = { database: { writing: :queue } }
 
   # Store uploaded files on the local file system (see config/storage.yml for options).
   config.active_storage.service = :local

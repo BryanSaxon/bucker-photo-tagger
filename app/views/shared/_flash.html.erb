@@ -1,0 +1,7 @@
+<% flash.each do |type, message| %>
+  <% next if message.blank? %>
+  <% css = type.to_s == "notice" ? "flash--notice" : "flash--alert" %>
+  <div class="flash <%= css %>">
+    <span><%= message %></span>
+  </div>
+<% end %>

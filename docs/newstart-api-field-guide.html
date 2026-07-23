@@ -1,0 +1,1812 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Developer field guide to the NewStart API: endpoint schedule, entity map, join integrity and known data traps.">
+<title>NewStart API — Field Guide</title>
+
+<style>
+  :root {
+    --paper:      #f5f5f2;
+    --panel:      #fbfbf9;
+    --ink:        #161c24;
+    --graphite:   #59636f;
+    --rule:       #d7d9d4;
+    --rule-soft:  #e6e7e3;
+    --blueprint:  #2e5e8e;
+    --blueprint-w:#e8eef5;
+    --redline:    #b33a22;
+    --redline-w:  #f7eae6;
+    --survey:     #35705a;
+    --survey-w:   #e7f0ec;
+
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+
+    --measure: 68ch;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:      #10151b;
+      --panel:      #161c23;
+      --ink:        #e3e7e6;
+      --graphite:   #96a1ad;
+      --rule:       #2b333c;
+      --rule-soft:  #212831;
+      --blueprint:  #83b2dd;
+      --blueprint-w:#18242f;
+      --redline:    #e58063;
+      --redline-w:  #2b1c17;
+      --survey:     #79b99a;
+      --survey-w:   #16241e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#10151b; --panel:#161c23; --ink:#e3e7e6; --graphite:#96a1ad;
+    --rule:#2b333c; --rule-soft:#212831;
+    --blueprint:#83b2dd; --blueprint-w:#18242f;
+    --redline:#e58063; --redline-w:#2b1c17;
+    --survey:#79b99a; --survey-w:#16241e;
+  }
+  :root[data-theme="light"] {
+    --paper:#f5f5f2; --panel:#fbfbf9; --ink:#161c24; --graphite:#59636f;
+    --rule:#d7d9d4; --rule-soft:#e6e7e3;
+    --blueprint:#2e5e8e; --blueprint-w:#e8eef5;
+    --redline:#b33a22; --redline-w:#f7eae6;
+    --survey:#35705a; --survey-w:#e7f0ec;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    display: grid;
+    grid-template-columns: 210px minmax(0, 1fr);
+    gap: 0;
+    max-width: 1240px;
+    margin: 0 auto;
+    align-items: start;
+  }
+
+  /* ---- sheet index (left rail) ---- */
+  .index {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    padding: 40px 24px 40px 28px;
+    border-right: 1px solid var(--rule);
+    max-height: 100vh;
+    overflow-y: auto;
+  }
+  .index-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--graphite);
+    margin: 0 0 18px;
+  }
+  .index ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .index a {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 8px;
+    padding: 5px 0;
+    text-decoration: none;
+    color: var(--graphite);
+    font-size: 13px;
+    line-height: 1.35;
+    border-bottom: 1px solid transparent;
+  }
+  .index a:hover, .index a:focus-visible { color: var(--ink); }
+  .index a:focus-visible { outline: 2px solid var(--blueprint); outline-offset: 2px; }
+  .index .sn { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--blueprint); padding-top: 2px; }
+
+  /* ---- main column ---- */
+  main { padding: 40px 32px 96px 40px; min-width: 0; }
+
+  header.masthead { border-bottom: 2px solid var(--ink); padding-bottom: 22px; margin-bottom: 8px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--graphite);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 4.2vw, 46px);
+    line-height: 1.05;
+    letter-spacing: -0.022em;
+    font-weight: 600;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-family: var(--serif);
+    font-size: 18px;
+    line-height: 1.55;
+    color: var(--graphite);
+    max-width: var(--measure);
+    margin: 0;
+  }
+
+  .titleblock {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    border: 1px solid var(--rule);
+    border-top: none;
+    margin-bottom: 52px;
+  }
+  .tb-cell { padding: 11px 14px; border-right: 1px solid var(--rule); }
+  .tb-cell:last-child { border-right: none; }
+  .tb-k { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--graphite); display: block; margin-bottom: 3px; }
+  .tb-v { font-family: var(--mono); font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  section { margin-bottom: 60px; scroll-margin-top: 24px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; border-bottom: 1px solid var(--rule); padding-bottom: 8px; margin-bottom: 22px; }
+  .sec-num { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--blueprint); }
+  h2 { font-size: 21px; font-weight: 600; letter-spacing: -0.012em; margin: 0; }
+  h3 { font-size: 15px; font-weight: 600; margin: 30px 0 10px; letter-spacing: -0.005em; }
+
+  p { max-width: var(--measure); margin: 0 0 14px; }
+  .lead { font-family: var(--serif); font-size: 17px; color: var(--graphite); }
+  ul.body { max-width: var(--measure); padding-left: 18px; margin: 0 0 14px; }
+  ul.body li { margin-bottom: 7px; }
+
+  code {
+    font-family: var(--mono);
+    font-size: .88em;
+    background: var(--rule-soft);
+    padding: 1px 5px;
+    border-radius: 2px;
+    word-break: break-word;
+  }
+  pre {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.65;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-left: 2px solid var(--blueprint);
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 0 0 16px;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .cmt { color: var(--graphite); }
+
+  /* ---- tables (schedules) ---- */
+  .scroll { overflow-x: auto; margin-bottom: 18px; border: 1px solid var(--rule); }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 640px; }
+  thead th {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--graphite);
+    text-align: left;
+    font-weight: 500;
+    padding: 9px 12px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; line-height: 1.45; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.mono, th.mono { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.wrap { min-width: 220px; }
+  .num { font-variant-numeric: tabular-nums; text-align: right; }
+
+  /* ---- badges ---- */
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 2px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .b-ok   { color: var(--survey);    background: var(--survey-w);    border-color: var(--survey); }
+  .b-warn { color: var(--redline);   background: var(--redline-w);   border-color: var(--redline); }
+  .b-info { color: var(--blueprint); background: var(--blueprint-w); border-color: var(--blueprint); }
+
+  /* ---- redline callouts ---- */
+  .redline {
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--redline);
+    background: var(--panel);
+    padding: 15px 18px;
+    margin-bottom: 14px;
+  }
+  .redline > :last-child { margin-bottom: 0; }
+  .rl-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .rl-id { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--redline); }
+  .rl-title { font-weight: 600; font-size: 14.5px; }
+  .redline p { font-size: 14px; margin-bottom: 9px; max-width: var(--measure); }
+  .fix { font-size: 13.5px; border-top: 1px dashed var(--rule); padding-top: 9px; color: var(--graphite); max-width: var(--measure); }
+  .fix b { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink); }
+
+  /* ---- entity map ---- */
+  .map { border: 1px solid var(--rule); background: var(--panel); padding: 26px 20px; margin-bottom: 20px; overflow-x: auto; }
+  .tier { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
+  .ent {
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    min-width: 168px;
+    max-width: 210px;
+    flex: 0 1 auto;
+  }
+  .ent-h {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+  }
+  .ent-h .n { color: var(--graphite); font-size: 9.5px; }
+  .ent-b { padding: 8px 10px; font-family: var(--mono); font-size: 11px; line-height: 1.75; }
+  .ent-b div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pk { color: var(--blueprint); font-weight: 600; }
+  .fk { color: var(--redline); }
+  .ent.root { border-color: var(--blueprint); border-width: 1px; }
+  .ent.root .ent-h { background: var(--blueprint-w); color: var(--blueprint); }
+
+  .drop { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 4px 0; }
+  .drop .line { width: 1px; height: 16px; background: var(--rule); }
+  .drop .lbl {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .08em;
+    color: var(--graphite);
+    background: var(--panel);
+    padding: 2px 8px;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--graphite); margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--rule); justify-content: center; }
+
+  a.link { color: var(--blueprint); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--blueprint); outline-offset: 2px; }
+
+  footer { border-top: 1px solid var(--rule); padding-top: 18px; margin-top: 12px; font-size: 13px; color: var(--graphite); max-width: var(--measure); }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  @media (max-width: 860px) {
+    .sheet { grid-template-columns: 1fr; }
+    .index { position: static; max-height: none; border-right: none; border-bottom: 1px solid var(--rule); padding: 26px 22px 18px; }
+    .index ol { flex-direction: row; flex-wrap: wrap; gap: 4px 18px; }
+    .index a { grid-template-columns: 26px 1fr; }
+    main { padding: 28px 22px 72px; }
+  }
+
+  /* ---- standalone controls ---- */
+  .theme-toggle {
+    position: fixed; top: 10px; right: 12px; z-index: 20;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--graphite);
+    background: var(--panel); border: 1px solid var(--rule);
+    border-radius: 2px; padding: 5px 9px; cursor: pointer; line-height: 1;
+  }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--graphite); }
+  .theme-toggle:focus-visible { outline: 2px solid var(--blueprint); outline-offset: 2px; }
+  .dl {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--blueprint);
+    background: var(--blueprint-w); border: 1px solid var(--blueprint);
+    border-radius: 2px; padding: 9px 14px; cursor: pointer; margin-bottom: 16px;
+  }
+  .dl:hover { filter: brightness(1.06); }
+  .dl:focus-visible { outline: 2px solid var(--blueprint); outline-offset: 2px; }
+  .dl-note { font-family: var(--sans); font-size: 13px; color: var(--graphite);
+             text-transform: none; letter-spacing: 0; margin-left: 4px; }
+  @media print { .theme-toggle, .dl, .index { display: none; } .sheet { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+
+<div class="sheet">
+
+  <nav class="index" aria-label="Sections">
+    <p class="index-title">Contents</p>
+    <ol>
+      <li><a href="#orientation"><span class="sn">01</span><span>Orientation</span></a></li>
+      <li><a href="#auth"><span class="sn">02</span><span>Auth &amp; conventions</span></a></li>
+      <li><a href="#endpoints"><span class="sn">03</span><span>Endpoint schedule</span></a></li>
+      <li><a href="#map"><span class="sn">04</span><span>Entity map</span></a></li>
+      <li><a href="#joins"><span class="sn">05</span><span>Join schedule</span></a></li>
+      <li><a href="#redlines"><span class="sn">06</span><span>Redlines</span></a></li>
+      <li><a href="#recipes"><span class="sn">07</span><span>Recipes</span></a></li>
+      <li><a href="#questions"><span class="sn">08</span><span>Open questions</span></a></li>
+      <li><a href="#spec"><span class="sn">09</span><span>Using the spec</span></a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <header class="masthead">
+      <p class="eyebrow">Developer field guide · Reverse-engineered from Postman</p>
+      <h1>NewStart API</h1>
+      <p class="standfirst">A read-only catalog API for homebuilding: communities, floorplans, lots, priced options and a 2,136-item product library. This guide is what the collection itself does not contain — schemas, relationships, and the places the data will bite you.</p>
+    </header>
+
+    <div class="titleblock">
+      <div class="tb-cell"><span class="tb-k">Collection</span><span class="tb-v">Newstar API</span></div>
+      <div class="tb-cell"><span class="tb-k">Version</span><span class="tb-v">v4</span></div>
+      <div class="tb-cell"><span class="tb-k">Operations</span><span class="tb-v">18</span></div>
+      <div class="tb-cell"><span class="tb-k">Verified</span><span class="tb-v">6 of 18</span></div>
+      <div class="tb-cell"><span class="tb-k">Sample</span><span class="tb-v">Comm. 1682</span></div>
+      <div class="tb-cell"><span class="tb-k">Updated</span><span class="tb-v">2026-06-30</span></div>
+    </div>
+
+    <section id="orientation">
+      <div class="sec-head"><span class="sec-num">01</span><h2>Orientation</h2></div>
+
+      <p class="lead">Everything hangs off a community. Get a <code>project_code</code> from <code>/communities</code>, and every other endpoint you care about is a path underneath it.</p>
+
+      <p>The API is entirely read-only — 18 endpoints, all <code>GET</code>, no writes. It is a Ruby on Rails app behind nginx (the saved responses carry <code>x-request-id</code>, <code>x-runtime</code> and a strong <code>ETag</code>).</p>
+
+      <p>Two things to know before you read anything else:</p>
+
+      <ul class="body">
+        <li><b>The source collection has no documentation.</b> No endpoint descriptions, no query parameters, no example values for the path variables, no test scripts. Every schema in this guide was derived by parsing the six saved response examples.</li>
+        <li><b>Only 6 of the 18 endpoints have a captured response.</b> The other 12 exist as requests that were never run, or whose responses weren't saved. They are marked <span class="badge b-warn">unverified</span> throughout, and their schemas are inference, not fact. Treat them as a to-do list for your first session against a live token.</li>
+      </ul>
+
+      <p>All six verified examples were captured against a single community — <code>1682</code>, Bradbury at Blackridge. Distributions quoted in this guide (row counts, enum frequencies, join integrity) describe that community, and may not generalize.</p>
+    </section>
+
+    <section id="auth">
+      <div class="sec-head"><span class="sec-num">02</span><h2>Auth &amp; conventions</h2></div>
+
+      <h3>Authentication</h3>
+      <p>A single header carrying both a token and an email, in Rails' structured token format:</p>
+<pre><code>Authorization: Token token="&lt;api_token&gt;", email="&lt;api_email&gt;"</code></pre>
+      <p>The quotes are part of the format — don't strip them. Both values are blank in the collection, as is <code>base_url</code>; get all three from the API owner.</p>
+
+      <h3>Response shape</h3>
+      <p>Every verified response is an object wrapping a single named array — <code>{"lots": [...]}</code>, <code>{"models": [...]}</code>. Only <code>/product_library</code> adds a second key, <code>count</code>.</p>
+
+      <h3>Numbers are strings</h3>
+      <p>Every money value, quantity and price comes back as a decimal string: <code>"615000.00"</code>. Parse with a decimal type, never a float. The single exception in the entire API is <code>Option.add_floor_area</code>, which is a real integer.</p>
+
+      <h3>There is no pagination</h3>
+      <p><code>/product_library</code> returns all 2,136 products in one response, and <code>count</code> equals the array length — it is a total, not a page hint. No endpoint accepts <code>limit</code>, <code>offset</code> or <code>page</code>. Since responses carry a strong <code>ETag</code>, cache aggressively and revalidate with <code>If-None-Match</code> rather than trying to fetch less.</p>
+
+      <h3>Keys are codes</h3>
+      <p>There are no numeric surrogate ids anywhere. Entities are identified by business codes — <code>project_code</code>, <code>product_code</code>, <code>room_code</code> — and models are identified by a <em>display string</em>, <code>model_description</code>. Case and padding matter; see the redlines.</p>
+    </section>
+
+    <section id="endpoints">
+      <div class="sec-head"><span class="sec-num">03</span><h2>Endpoint schedule</h2></div>
+      <p>All paths are relative to <code>{base_url}/api/v4</code>. Row counts are from community <code>1682</code>.</p>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>Status</th><th>Path</th><th>Returns</th><th class="num">Rows</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="badge b-ok">verified</span></td>
+              <td class="mono">/communities</td>
+              <td class="mono">communities[]</td>
+              <td class="num mono">25</td>
+              <td class="wrap">Start here. Yields every <code>project_code</code>.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-ok">verified</span></td>
+              <td class="mono">/communities/{code}/models</td>
+              <td class="mono">models[]</td>
+              <td class="num mono">49</td>
+              <td class="wrap"><span class="badge b-warn">heavy</span> 1.49 MB stored. See redline R-01.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-ok">verified</span></td>
+              <td class="mono">/communities/{code}/lots</td>
+              <td class="mono">lots[]</td>
+              <td class="num mono">328</td>
+              <td class="wrap">All statuses; no server-side filter.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-ok">verified</span></td>
+              <td class="mono">/communities/{code}/options</td>
+              <td class="mono">options[]</td>
+              <td class="num mono">1,347</td>
+              <td class="wrap"><span class="badge b-warn">partial</span> Drawn options only. See R-02.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-ok">verified</span></td>
+              <td class="mono">/communities/{code}/steps</td>
+              <td class="mono">steps[]</td>
+              <td class="num mono">48</td>
+              <td class="wrap">Configurator ordering — the UI layout model.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-ok">verified</span></td>
+              <td class="mono">/product_library</td>
+              <td class="mono">products[], count</td>
+              <td class="num mono">2,136</td>
+              <td class="wrap">Whole catalog, unfiltered, unpaginated.</td>
+            </tr>
+
+            <tr>
+              <td><span class="badge b-warn">unverified</span></td>
+              <td class="mono">/communities/{code}/lots/{lot}</td>
+              <td class="mono">lot?</td>
+              <td class="num mono">—</td>
+              <td class="wrap">Single lot. Wrapper key unknown. Lot numbers are zero-padded.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-warn">unverified</span></td>
+              <td class="mono">/communities/{code}/products</td>
+              <td class="mono">products?</td>
+              <td class="num mono">—</td>
+              <td class="wrap"><b>Test this early</b> — likely the community-scoped catalog you actually want.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-warn">unverified</span></td>
+              <td class="mono">/communities/{code}/models2</td>
+              <td class="mono">?</td>
+              <td class="num mono">—</td>
+              <td class="wrap"><b>Test this early</b> — probable fix for the <code>/models</code> bloat.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-warn">unverified</span></td>
+              <td class="mono">/communities/{code}/models/{model}/products</td>
+              <td class="mono">?</td>
+              <td class="num mono">—</td>
+              <td class="wrap"><code>{model}</code> is undefined — see R-06.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-warn">unverified</span></td>
+              <td class="mono">/communities/{code}/models/{model}/rooms</td>
+              <td class="mono">?</td>
+              <td class="num mono">—</td>
+              <td class="wrap">Probably the per-model room set (~99, not 226).</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-warn">unverified</span></td>
+              <td class="mono">/communities/{code}/models/{model}/prices</td>
+              <td class="mono">?</td>
+              <td class="num mono">—</td>
+              <td class="wrap">Pricing granularity unknown.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-warn">unverified</span></td>
+              <td class="mono">/communities/{code}/models2/{model}/products</td>
+              <td class="mono">?</td>
+              <td class="num mono">—</td>
+              <td class="wrap"><code>models2</code> counterpart.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-warn">unverified</span></td>
+              <td class="mono">/communities/{code}/models2/{model}/rooms</td>
+              <td class="mono">?</td>
+              <td class="num mono">—</td>
+              <td class="wrap"><code>models2</code> counterpart.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-warn">unverified</span></td>
+              <td class="mono">/communities/{code}/models2/{model}/prices</td>
+              <td class="mono">?</td>
+              <td class="num mono">—</td>
+              <td class="wrap"><code>models2</code> counterpart.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-warn">unverified</span></td>
+              <td class="mono">/product_images</td>
+              <td class="mono">?</td>
+              <td class="num mono">—</td>
+              <td class="wrap">Image index. Naming scheme unknown — see R-05.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-warn">unverified</span></td>
+              <td class="mono">/product_images/{name}</td>
+              <td class="mono">?</td>
+              <td class="num mono">—</td>
+              <td class="wrap">Image metadata.</td>
+            </tr>
+            <tr>
+              <td><span class="badge b-warn">unverified</span></td>
+              <td class="mono">/product_images/{name}/file_contents</td>
+              <td class="mono">bytes?</td>
+              <td class="num mono">—</td>
+              <td class="wrap">Binary or base64-in-JSON — check <code>Content-Type</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:13.5px;color:var(--graphite)">The collection also contains one empty stub named <em>New Request</em> with no URL. It is excluded here and from the spec.</p>
+    </section>
+
+    <section id="map">
+      <div class="sec-head"><span class="sec-num">04</span><h2>Entity map</h2></div>
+      <p class="lead">Six entities, one root. Everything is reachable from a <code>project_code</code>, and the catalog joins in through <code>product_code</code>.</p>
+
+      <div class="map">
+        <div class="tier">
+          <div class="ent root">
+            <div class="ent-h"><span>Community</span><span class="n">25</span></div>
+            <div class="ent-b">
+              <div><span class="pk">project_code</span></div>
+              <div>name</div>
+              <div>product_library_code</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="drop"><span class="line"></span><span class="lbl">project_code → path parameter</span><span class="line"></span></div>
+
+        <div class="tier">
+          <div class="ent">
+            <div class="ent-h"><span>Model</span><span class="n">49</span></div>
+            <div class="ent-b">
+              <div><span class="pk">model_description</span></div>
+              <div>model · elevation</div>
+              <div>base_model_price</div>
+              <div>base_model_rooms</div>
+              <div><span class="fk">rooms[] ⚠ global</span></div>
+            </div>
+          </div>
+          <div class="ent">
+            <div class="ent-h"><span>Lot</span><span class="n">328</span></div>
+            <div class="ent-b">
+              <div><span class="pk">lot</span></div>
+              <div>lot_status · lot_type</div>
+              <div>lot_address</div>
+              <div>gross_sale</div>
+              <div><span class="fk">model_description</span></div>
+            </div>
+          </div>
+          <div class="ent">
+            <div class="ent-h"><span>Step</span><span class="n">48</span></div>
+            <div class="ent-b">
+              <div><span class="pk">step · sortorder</span></div>
+              <div>categories[]</div>
+              <div>subcategories[]</div>
+              <div><span class="fk">area_associations</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="drop"><span class="line"></span><span class="lbl">model_description · room_code</span><span class="line"></span></div>
+
+        <div class="tier">
+          <div class="ent">
+            <div class="ent-h"><span>Option</span><span class="n">1,347</span></div>
+            <div class="ent-b">
+              <div><span class="pk">model_desc + product_code</span></div>
+              <div>unit_price · gross_sale</div>
+              <div>option_type · uofm</div>
+              <div><span class="fk">room_replacement_rules</span></div>
+            </div>
+          </div>
+          <div class="ent">
+            <div class="ent-h"><span>Room</span><span class="n">226</span></div>
+            <div class="ent-b">
+              <div><span class="pk">room_code</span></div>
+              <div>room_desc</div>
+              <div class="cmt" style="color:var(--graphite)">dictionary only</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="drop"><span class="line"></span><span class="lbl">product_code — the one clean join</span><span class="line"></span></div>
+
+        <div class="tier">
+          <div class="ent">
+            <div class="ent-h"><span>Product</span><span class="n">2,136</span></div>
+            <div class="ent-b">
+              <div><span class="pk">product_code</span></div>
+              <div>short_description</div>
+              <div>attribute1_desc / attribute1</div>
+              <div>category_code · subcategory_code</div>
+              <div>image</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="legend">
+          <span><span class="pk">■</span> primary key</span>
+          <span><span class="fk">■</span> foreign key / reference</span>
+          <span>count = rows in community 1682</span>
+        </div>
+      </div>
+
+      <p><b>Reading the map.</b> <code>Model</code>, <code>Lot</code> and <code>Step</code> are siblings scoped to a community. <code>Option</code> is the junction table — it binds a model to a product with a price. <code>Room</code> is a shared dictionary referenced by lowercase CSV strings from three different places. <code>Product</code> is global (or library-scoped — that's an open question).</p>
+    </section>
+
+    <section id="joins">
+      <div class="sec-head"><span class="sec-num">05</span><h2>Join schedule</h2></div>
+      <p>Every relationship, with measured referential integrity from community <code>1682</code>. This is the part that will decide how defensive your code needs to be.</p>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>From</th><th>To</th><th>Key</th><th>Integrity</th><th>What it means</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">Option</td><td class="mono">Product</td>
+              <td class="mono">product_code</td>
+              <td><span class="badge b-ok">116 / 116</span></td>
+              <td class="wrap">Clean. Every option product resolves in the library. Safe to inner-join.</td>
+            </tr>
+            <tr>
+              <td class="mono">Step</td><td class="mono">Room</td>
+              <td class="mono">area_associations</td>
+              <td><span class="badge b-ok">226 / 226</span></td>
+              <td class="wrap">Clean, but compare case-insensitively — the CSV is lowercase, <code>room_code</code> is uppercase.</td>
+            </tr>
+            <tr>
+              <td class="mono">Option</td><td class="mono">Model</td>
+              <td class="mono">model_description</td>
+              <td><span class="badge b-info">49 / 50</span></td>
+              <td class="wrap">One orphan (<code>Hartley 2B</code>). Log and skip.</td>
+            </tr>
+            <tr>
+              <td class="mono">Option</td><td class="mono">Room</td>
+              <td class="mono">room_replacement_rules</td>
+              <td><span class="badge b-info">123 / 126</span></td>
+              <td class="wrap">3 unresolvable codes. Resolve defensively when applying add/remove rules.</td>
+            </tr>
+            <tr>
+              <td class="mono">Model</td><td class="mono">Room</td>
+              <td class="mono">base_model_rooms</td>
+              <td><span class="badge b-info">86 / 99</span></td>
+              <td class="wrap">13 room codes a model claims aren't in the dictionary. Don't assume lookup succeeds.</td>
+            </tr>
+            <tr>
+              <td class="mono">Lot</td><td class="mono">Model</td>
+              <td class="mono">model_description</td>
+              <td><span class="badge b-warn">35 / 49</span></td>
+              <td class="wrap">Plus 40 lots with <code>null</code>. Free-text drift like <code>"Addington 1C (basement)"</code>. See R-03.</td>
+            </tr>
+            <tr>
+              <td class="mono">Step</td><td class="mono">Option / Product</td>
+              <td class="mono">category name</td>
+              <td><span class="badge b-warn">1 / 4</span></td>
+              <td class="wrap">Effectively broken — steps carry names, catalog carries codes. See R-04.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="redlines">
+      <div class="sec-head"><span class="sec-num">06</span><h2>Redlines</h2></div>
+      <p class="lead">Seven things in this API will cost your dev an afternoon each if nobody tells them first. This is that telling.</p>
+
+      <div class="redline">
+        <div class="rl-head"><span class="rl-id">R-01</span><span class="rl-title">94% of the <code>/models</code> payload is the same array repeated</span></div>
+        <p>Each of the 49 models carries a <code>rooms</code> array — and all 49 arrays are <em>byte-identical</em>. It is a global 226-entry room dictionary, duplicated once per model. That's ~630 KB of a 668 KB response; the stored Postman example is 1.49 MB.</p>
+        <p>A model's actual rooms are in <code>base_model_rooms</code>, a lowercase CSV of about 99 codes. The <code>rooms</code> array is not model-specific and never varies.</p>
+        <p class="fix"><b>Do this</b> — read the dictionary once from <code>models[0].rooms</code>, drop it from the other 48, and resolve <code>base_model_rooms</code> against it. Then go test <code>/models2</code>, which almost certainly exists to fix exactly this.</p>
+      </div>
+
+      <div class="redline">
+        <div class="rl-head"><span class="rl-id">R-02</span><span class="rl-title"><code>/options</code> is not the full option catalog</span></div>
+        <p>Every one of the 1,347 rows has <code>category = "Drawn Options"</code>, spread across just four subcategories: Structural/Plumbing, Windows/Doors/Ceiling, Cabinets, Fireplaces.</p>
+        <p>Meanwhile <code>/steps</code> for the same community describes <b>40 categories and 105 subcategories</b> — flooring, lighting, trim, appliances, paint. None of that is in <code>/options</code>.</p>
+        <p class="fix"><b>Do this</b> — don't build a price engine assuming <code>/options</code> is complete. Confirm with the API owner where non-structural selections and their prices come from before you scope the work.</p>
+      </div>
+
+      <div class="redline">
+        <div class="rl-head"><span class="rl-id">R-03</span><span class="rl-title">Lots don't reliably resolve to models, and <code>gross_sale</code> doesn't add up</span></div>
+        <p>Two separate traps on the same entity. First, <code>Lot.model_description</code> is free-text drifted: 40 of 328 lots are <code>null</code>, and 14 more values have no matching model — including variants like <code>"Addington 1C (basement)"</code>.</p>
+        <p>Second, the pricing does not reconcile. <code>base_model_price + options + lot_premium + lot_price</code> equals <code>gross_sale</code> on only 245 of 328 lots. 67 non-zero lots genuinely disagree (discounts and incentives are not exposed anywhere), and 41 lots — almost all <code>Open</code> — report <code>"0.00"</code> because they're unsold.</p>
+        <p class="fix"><b>Do this</b> — treat <code>gross_sale</code> as authoritative and never recompute it. Match models with a fallback path, and filter <code>gross_sale = "0.00"</code> out of any average-price calculation.</p>
+      </div>
+
+      <div class="redline">
+        <div class="rl-head"><span class="rl-id">R-04</span><span class="rl-title">Steps give you names; everything else gives you codes</span></div>
+        <p><code>/steps</code> is the only endpoint that describes the configurator's layout — which is exactly what you need to build a UI. But its categories and subcategories are <em>display names</em> (<code>"Brick &amp; Stone"</code>), while <code>Option</code> and <code>Product</code> carry codes (<code>01Brick</code>). There is no code anywhere in the steps payload.</p>
+        <p>String matching does not rescue you: only 1 of the 4 option subcategory names appears in the 105-name step vocabulary.</p>
+        <p class="fix"><b>Do this</b> — ask the API owner to add <code>category_code</code> / <code>subcategory_code</code> to <code>/steps</code>. Until then you cannot reliably drive a stepped configurator from this data. This is the single highest-value fix on the list.</p>
+      </div>
+
+      <div class="redline">
+        <div class="rl-head"><span class="rl-id">R-05</span><span class="rl-title"><code>Product.image</code> is a flag, and it's misspelled in the data</span></div>
+        <p>It looks like a filename. It isn't. The values are sentinels: <code>BookYesImage</code> (1,207 rows), empty (472), <code>BookNoImage</code> (447) — plus typos that are live in the source data: <code>BookNolmage</code> with a lowercase L (2 rows), <code>BookYesIamge</code> (1 row), and 4 rows of an unexplained <code>OB49</code>.</p>
+        <p>So there is no documented way to get from a product to an actual image name for <code>/product_images/{name}</code>.</p>
+        <p class="fix"><b>Do this</b> — match case-insensitively on a <code>yes</code>/<code>no</code> substring rather than on equality, or those typo rows silently misclassify. Then ask how image names are derived.</p>
+      </div>
+
+      <div class="redline">
+        <div class="rl-head"><span class="rl-id">R-06</span><span class="rl-title">Timestamps have lost their trailing zeros</span></div>
+        <p><code>moddatetime</code> and <code>lastmoddatetime</code> are nominally <code>YYYYMMDD.HHMMSS</code>. But the values have been round-tripped through a float somewhere upstream, so trailing zeros are gone — observed lengths are 10, 13, 14 and 15 characters. <code>"20230824.1131"</code> and <code>"20230824.11335"</code> are the same field as <code>"20230824.113138"</code>.</p>
+        <p class="fix"><b>Do this</b> — right-pad the fractional part to 6 digits before parsing. Parse naively and you will silently produce wrong times on the 244 rows that are short.</p>
+      </div>
+
+      <div class="redline">
+        <div class="rl-head"><span class="rl-id">R-07</span><span class="rl-title">Case, padding and undefined path variables</span></div>
+        <p>A cluster of small things that each break a lookup:</p>
+        <ul class="body" style="font-size:14px">
+          <li><code>lot_type</code> contains both <code>Reg</code> (245 rows) and <code>REG</code> (4 rows). Normalize before grouping.</li>
+          <li><code>lot</code> numbers are zero-padded strings (<code>"0902"</code>). Don't parse to int and back.</li>
+          <li><code>room_code</code> is uppercase; every reference to it (<code>base_model_rooms</code>, <code>area_associations</code>, <code>room_replacement_rules</code>) is lowercase.</li>
+          <li><code>Model.base_model_price</code> has one decimal place (<code>"530000.0"</code>); <code>Lot.base_model_price</code> has two (<code>"615000.00"</code>). Normalize before comparing.</li>
+          <li><code>{model_code}</code> and <code>{image_name}</code> appear in paths but <b>no payload field has either name</b>. For models, try <code>model_description</code> URL-encoded first.</li>
+          <li><code>Option.description</code> is truncated mid-word at ~250 characters in the source data.</li>
+          <li><code>Product.attribute1</code> is a CSV choice-list of up to 55 options, not a single value — and despite the <code>1</code>, there is no <code>attribute2</code>.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="recipes">
+      <div class="sec-head"><span class="sec-num">07</span><h2>Recipes</h2></div>
+
+      <h3>Fetch everything for one community</h3>
+      <p>Four calls, all parallel after the first. Expect ~2.5 MB uncompressed.</p>
+<pre><code>GET /api/v4/communities                      <span class="cmt">→ pick a project_code</span>
+
+GET /api/v4/communities/1682/models          <span class="cmt">→ 49 models  (strip 48 rooms[])</span>
+GET /api/v4/communities/1682/lots            <span class="cmt">→ 328 lots</span>
+GET /api/v4/communities/1682/options         <span class="cmt">→ 1,347 options (drawn only)</span>
+GET /api/v4/communities/1682/steps           <span class="cmt">→ 48 UI steps</span>
+GET /api/v4/product_library                  <span class="cmt">→ 2,136 products (cache hard)</span></code></pre>
+
+      <h3>Price a model with its options</h3>
+<pre><code>options
+  .filter(o =&gt; o.model_description === "Abigail 1A")
+  .map(o =&gt; ({
+    ...o,
+    product: productsByCode.get(o.product_code),   <span class="cmt">// always resolves</span>
+    price:   new Decimal(o.gross_sale)             <span class="cmt">// string → decimal</span>
+  }));</code></pre>
+
+      <h3>Resolve a model's rooms</h3>
+<pre><code><span class="cmt">// read the dictionary ONCE — it's identical on every model</span>
+const roomsByCode = new Map(
+  models[0].rooms.map(r =&gt; [r.room_code.toLowerCase(), r])
+);
+
+const modelRooms = model.base_model_rooms
+  .split(",")
+  .map(c =&gt; c.trim())
+  .filter(Boolean)
+  .map(c =&gt; roomsByCode.get(c))
+  .filter(Boolean);          <span class="cmt">// ~13% won't resolve — expected</span></code></pre>
+
+      <h3>Parse a timestamp safely</h3>
+<pre><code>function parseModDateTime(v) {
+  const [date, frac = ""] = v.split(".");
+  const t = frac.padEnd(6, "0");                   <span class="cmt">// R-06: restore lost zeros</span>
+  return new Date(Date.UTC(
+    +date.slice(0, 4), +date.slice(4, 6) - 1, +date.slice(6, 8),
+    +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6)
+  ));
+}</code></pre>
+    </section>
+
+    <section id="questions">
+      <div class="sec-head"><span class="sec-num">08</span><h2>Open questions</h2></div>
+      <p>Send these to whoever owns the API. They're ordered by how much they block real work.</p>
+
+      <div class="scroll">
+        <table>
+          <thead><tr><th class="num">#</th><th>Question</th><th>Blocks</th></tr></thead>
+          <tbody>
+            <tr><td class="num mono">1</td><td class="wrap">Can <code>/steps</code> return <code>category_code</code> and <code>subcategory_code</code> alongside the display names?</td><td class="wrap">Any stepped configurator UI (R-04).</td></tr>
+            <tr><td class="num mono">2</td><td class="wrap">Where do non-structural options and their prices come from? <code>/options</code> only returns "Drawn Options".</td><td class="wrap">Pricing completeness (R-02).</td></tr>
+            <tr><td class="num mono">3</td><td class="wrap">What is <code>models2</code>, and should new work use it instead of <code>/models</code>?</td><td class="wrap">Payload size, integration design (R-01).</td></tr>
+            <tr><td class="num mono">4</td><td class="wrap">What value goes in <code>{model_code}</code> — <code>model</code> or <code>model_description</code>?</td><td class="wrap">6 of the 12 unverified endpoints.</td></tr>
+            <tr><td class="num mono">5</td><td class="wrap"><code>/product_library</code> takes no parameter, but communities reference two libraries (<code>SIGN</code>, <code>BIRM</code>). How do we get the Birmingham list?</td><td class="wrap">3 of 25 communities.</td></tr>
+            <tr><td class="num mono">6</td><td class="wrap">How is an image name derived from a product? <code>Product.image</code> is a flag, not a filename.</td><td class="wrap">All product imagery (R-05).</td></tr>
+            <tr><td class="num mono">7</td><td class="wrap">What distinguishes <code>option_type</code> <code>UPG</code> from <code>OPT</code>? Only 6 of 1,347 rows are <code>OPT</code>.</td><td class="wrap">Option classification.</td></tr>
+            <tr><td class="num mono">8</td><td class="wrap">Why doesn't <code>gross_sale</code> reconcile on 67 lots — discounts, incentives, something else?</td><td class="wrap">Any revenue reporting (R-03).</td></tr>
+            <tr><td class="num mono">9</td><td class="wrap">Are rate limits, error response shapes, or non-200 status codes documented anywhere? Nothing but 200s was captured.</td><td class="wrap">Error handling, retry policy.</td></tr>
+            <tr><td class="num mono">10</td><td class="wrap">Is there a changed-since parameter, or is full re-fetch the only sync strategy?</td><td class="wrap">Sync design.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="spec">
+      <div class="sec-head"><span class="sec-num">09</span><h2>Using the spec</h2></div>
+
+      <p>This guide ships with a companion <b>OpenAPI 3.1 spec</b> — <code>newstart-openapi.yaml</code> — covering all 18 operations with full schemas, enums, and every caveat above attached to the field it applies to. It validates clean: no broken references, no duplicate operation ids, every path parameter declared.</p>
+
+      <button type="button" class="dl" id="dl-spec">
+        Download newstart-openapi.yaml
+        <span class="dl-note">37 KB &middot; embedded in this file</span>
+      </button>
+
+      <h3>Render it as Swagger</h3>
+      <ul class="body">
+        <li><b>Swagger UI</b> — paste into <a class="link" href="https://editor.swagger.io" target="_blank" rel="noopener">editor.swagger.io</a> for the classic interactive page.</li>
+        <li><b>Redoc</b> — <code>npx @redocly/cli preview-docs newstart-openapi.yaml</code> gives a cleaner three-column read, and renders the long field descriptions better.</li>
+        <li><b>Back into Postman</b> — import the YAML to regenerate the collection with every description attached, which the current collection lacks entirely.</li>
+        <li><b>Client generation</b> — <code>npx openapi-typescript newstart-openapi.yaml -o newstart.d.ts</code> for typed responses.</li>
+      </ul>
+
+      <h3>Read the verification flags</h3>
+      <p>Every operation carries <code>x-verified: true|false</code>. Filter on it to see exactly which 6 endpoints are grounded in a real response and which 12 are inference:</p>
+<pre><code>yq '.paths.*.get | select(."x-verified" == false) | .operationId' newstart-openapi.yaml</code></pre>
+
+      <p>As your dev confirms the unverified endpoints against a live token, flip the flags and paste the real responses in as examples. The spec is designed to be the thing that gets less wrong over time — not a snapshot.</p>
+
+      <footer>
+        Derived from the Postman collection <b>Newstar API</b> (updated 2026-06-30) by parsing its six saved response examples. Counts, enum frequencies and join-integrity figures describe community 1682 and may not generalize. Unverified endpoints are inference, not documentation.
+      </footer>
+    </section>
+
+  </main>
+</div>
+
+<button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch colour theme">Theme</button>
+
+<script type="text/plain" id="spec-src">openapi: 3.1.0
+
+info:
+  title: NewStart API (Postman collection "Newstar API")
+  version: "v4"
+  summary: Read-only homebuilder catalog API — communities, models, lots, options and product library.
+  description: |
+    Reverse-engineered from the Postman collection **Newstar API**
+    (`26225138-809ecb7d-7e9c-4bce-a6db-905c14e1a7eb`, updated 2026-06-30).
+
+    The source collection contains **no descriptions, no query parameters and no test
+    scripts** — every schema below was derived from the six saved response examples,
+    all captured against community `1682` (Bradbury at Blackridge).
+
+    ## Verification status
+
+    Each operation carries an `x-verified` flag:
+
+    * `x-verified: true`  — a real 200 response was captured and the schema is derived from it.
+    * `x-verified: false` — the request exists in the collection but has **no saved example**.
+      The response schema is an educated inference from sibling endpoints and is flagged
+      in the operation description. Confirm before building against it.
+
+    6 of 18 operations are verified.
+
+    ## Shape conventions
+
+    * Every verified response is a **JSON object with a single array property** named after
+      the resource (`communities`, `models`, `lots`, `options`, `products`, `steps`).
+      Only `/product_library` adds a second property (`count`).
+    * **All money is a decimal string**, never a number (`"615000.00"`). Parse with a decimal
+      type; never with a float.
+    * **No pagination anywhere.** `/product_library` returns all 2,136 rows in one response and
+      `count` equals the array length. Responses carry a strong `ETag`, so use
+      `If-None-Match` for cheap revalidation instead.
+    * Identifiers are **codes, not numeric ids** — `project_code`, `product_code`, `room_code`,
+      `model_description`. There is no surrogate key anywhere in the API.
+
+  contact:
+    name: API map generated for developer onboarding
+  x-source-collection: 26225138-809ecb7d-7e9c-4bce-a6db-905c14e1a7eb
+  x-verified-operations: 6
+  x-total-operations: 18
+
+servers:
+  - url: "{base_url}/api/{api_version}"
+    description: NewStart host (Rails / nginx). `base_url` is blank in the collection — supply it.
+    variables:
+      base_url:
+        default: https://REPLACE-ME.example.com
+        description: |
+          Left empty in the Postman collection. The saved examples were served by
+          `nginx/1.22.1` fronting a Ruby on Rails app (`x-request-id`, `x-runtime`, `etag`).
+      api_version:
+        default: v4
+        enum: [v4]
+        description: |
+          The collection references `{{api_version}}` but never defines it. All six saved
+          examples are named "v4", so `v4` is the only version known to work.
+
+security:
+  - NewStartToken: []
+
+tags:
+  - name: Communities
+    description: |
+      The root of the whole graph. Everything else hangs off a `project_code`.
+  - name: Models
+    description: |
+      Floorplan + elevation combinations offered in a community. Two parallel families exist:
+      the fat `/models` endpoint and the decomposed `/models2` family — see the
+      `x-design-note` on `/communities/{project_code}/models`.
+  - name: Lots
+    description: Physical lots in a community, with sales status and pricing.
+  - name: Options
+    description: Priced upgrades available against a specific model + elevation.
+  - name: Products
+    description: The product/finish catalog and its images.
+  - name: Steps
+    description: The configurator's presentation order — how rooms, categories and subcategories are grouped into a buyer-facing flow.
+
+paths:
+
+  /communities:
+    get:
+      operationId: getCommunities
+      summary: List all communities
+      tags: [Communities]
+      x-verified: true
+      description: |
+        **Start here.** Returns every community the token can see (25 in the captured example).
+
+        The `project_code` returned here is the path parameter for nearly every other endpoint,
+        and `product_library_code` tells you which product library the community draws from.
+      responses:
+        "200":
+          description: All communities.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [communities]
+                properties:
+                  communities:
+                    type: array
+                    items: { $ref: "#/components/schemas/Community" }
+              example:
+                communities:
+                  - name: Bradbury at Blackridge
+                    project_code: "1682"
+                    product_library_code: SIGN
+                    product_library: Master Product Library
+                  - name: Blackridge Phase 2-6
+                    project_code: "1684"
+                    product_library_code: BIRM
+                    product_library: Birmingham Product List
+
+  /communities/{project_code}/models:
+    get:
+      operationId: getModels
+      summary: List models (floorplan + elevation) for a community
+      tags: [Models]
+      x-verified: true
+      x-payload-warning: true
+      x-design-note: |
+        This endpoint is heavily denormalized. The `rooms` array is **byte-identical across
+        every model** — it is a global 226-entry room dictionary repeated once per model, and
+        it accounts for roughly 94% of the response body (630 KB of 668 KB in the captured
+        example; the raw stored example is 1.49 MB).
+
+        A model's *actual* rooms are in `base_model_rooms`, a lowercase CSV of ~99 codes.
+        Read the room dictionary once from `models[0].rooms`, then resolve `base_model_rooms`
+        against it. Prefer the `/models2` family if you can confirm its shape.
+      description: |
+        Returns every model/elevation combination in the community (49 in the captured example,
+        across 17 distinct floorplan names).
+
+        `model_description` (e.g. `"Abigail 1A"`) is the de facto primary key — it is the value
+        that `lots` and `options` join against. It is always `model` + `" "` + `elevation`.
+      parameters:
+        - $ref: "#/components/parameters/ProjectCode"
+      responses:
+        "200":
+          description: All models for the community.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [models]
+                properties:
+                  models:
+                    type: array
+                    items: { $ref: "#/components/schemas/Model" }
+
+  /communities/{project_code}/lots:
+    get:
+      operationId: getLots
+      summary: List lots for a community
+      tags: [Lots]
+      x-verified: true
+      description: |
+        Returns every lot in the community (328 in the captured example), including sold and
+        closed lots. There is no status filter — filter client-side on `lot_status`.
+      parameters:
+        - $ref: "#/components/parameters/ProjectCode"
+      responses:
+        "200":
+          description: All lots for the community.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [lots]
+                properties:
+                  lots:
+                    type: array
+                    items: { $ref: "#/components/schemas/Lot" }
+
+  /communities/{project_code}/lots/{lot_number}:
+    get:
+      operationId: getLotByNumber
+      summary: Get a single lot
+      tags: [Lots]
+      x-verified: false
+      description: |
+        ⚠ **UNVERIFIED** — no saved example in the collection.
+
+        Inferred to return one `Lot`. The wrapper key is unconfirmed: it may be
+        `{ "lot": {...} }`, a bare object, or `{ "lots": [...] }` with one element.
+        Note that `lot` values are **zero-padded strings** (`"0902"`), so pass the padded form.
+      parameters:
+        - $ref: "#/components/parameters/ProjectCode"
+        - $ref: "#/components/parameters/LotNumber"
+      responses:
+        "200":
+          description: A single lot (shape unconfirmed).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lot: { $ref: "#/components/schemas/Lot" }
+
+  /communities/{project_code}/options:
+    get:
+      operationId: getOptions
+      summary: List priced options for a community
+      tags: [Options]
+      x-verified: true
+      x-scope-warning: true
+      description: |
+        Returns priced options keyed to a specific `model_description` (1,347 rows in the
+        captured example, covering 116 distinct products).
+
+        **Scope caveat:** every row in the captured example has
+        `category = "Drawn Options"` (`01DrawnO`) across just 4 subcategories. The community's
+        `steps` payload describes **40 categories and 105 subcategories**. So this endpoint is
+        *not* the full selectable-option catalog for a home — it appears to cover structural
+        "drawn" options only. Everything else must come from the product library plus `steps`.
+        Confirm this with the API owner before treating it as complete.
+      parameters:
+        - $ref: "#/components/parameters/ProjectCode"
+      responses:
+        "200":
+          description: All options for the community.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [options]
+                properties:
+                  options:
+                    type: array
+                    items: { $ref: "#/components/schemas/Option" }
+
+  /communities/{project_code}/steps:
+    get:
+      operationId: getCommunitySteps
+      summary: Get the configurator step / category ordering
+      tags: [Steps]
+      x-verified: true
+      description: |
+        The buyer-facing presentation model: 48 ordered steps ("Exterior Finishes", "Kitchen",
+        "Primary Bathroom"…), each with ordered categories and subcategories, and each mapped
+        to a set of room codes via `area_associations`.
+
+        This is the only endpoint that tells you **how to lay out a configurator UI**. Its
+        `area_associations` codes resolve cleanly — all 226 map to the room dictionary in
+        `/models` — but its category and subcategory values are **names, not codes**, so
+        joining to `options` or `product_library` requires string matching. See the
+        `x-join-warning` on `Step`.
+      parameters:
+        - $ref: "#/components/parameters/ProjectCode"
+      responses:
+        "200":
+          description: Ordered steps for the community.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [steps]
+                properties:
+                  steps:
+                    type: array
+                    items: { $ref: "#/components/schemas/Step" }
+
+  /product_library:
+    get:
+      operationId: getProductLibrary
+      summary: Get the full product / finish catalog
+      tags: [Products]
+      x-verified: true
+      description: |
+        Returns the entire product catalog — 2,136 products in the captured example — plus a
+        `count`. `count` equals the array length; it is a total, not a pagination hint.
+
+        **Open question:** communities reference two libraries (`SIGN` — Master Product Library,
+        `BIRM` — Birmingham Product List) but this endpoint takes no parameter and returns one
+        flat list. Either the token is scoped to one library, or an undocumented query parameter
+        selects it. Resolve this before supporting a `BIRM` community.
+      responses:
+        "200":
+          description: The full product catalog.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [products, count]
+                properties:
+                  products:
+                    type: array
+                    items: { $ref: "#/components/schemas/Product" }
+                  count:
+                    type: integer
+                    description: Total product count. Equals `products.length` — not a page total.
+                    examples: [2136]
+
+  /communities/{project_code}/products:
+    get:
+      operationId: getCommunityProducts
+      summary: List products available in a community
+      tags: [Products]
+      x-verified: false
+      description: |
+        ⚠ **UNVERIFIED** — no saved example.
+
+        Inferred to return the community-scoped subset of `/product_library`, most likely as
+        `{ "products": [...] }`. If it works, prefer it over `/product_library` — it should
+        resolve the `SIGN` vs `BIRM` library ambiguity implicitly.
+      parameters:
+        - $ref: "#/components/parameters/ProjectCode"
+      responses:
+        "200":
+          description: Community-scoped products (shape unconfirmed).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items: { $ref: "#/components/schemas/Product" }
+
+  /communities/{project_code}/models2:
+    get:
+      operationId: getModels2
+      summary: List models — decomposed variant
+      tags: [Models]
+      x-verified: false
+      description: |
+        ⚠ **UNVERIFIED** — no saved example.
+
+        `models2` and its three subresources (`products`, `rooms`, `prices`) mirror the
+        `/models` subresources exactly. The naming strongly suggests a **second-generation,
+        normalized** model API introduced to fix the payload duplication in `/models`.
+
+        Worth testing first: if `models2` returns model rows *without* the repeated 226-entry
+        room dictionary, it is the endpoint you want, and `/models` should be avoided.
+      parameters:
+        - $ref: "#/components/parameters/ProjectCode"
+      responses:
+        "200":
+          description: Models, decomposed shape (unconfirmed).
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /communities/{project_code}/models/{model_code}/products:
+    get:
+      operationId: getModelProducts
+      summary: List products available for a model
+      tags: [Models]
+      x-verified: false
+      description: |
+        ⚠ **UNVERIFIED** — no saved example.
+
+        **`model_code` is undefined in the collection.** No field named `model_code` appears in
+        any captured payload. The two candidates are `model` (`"Abigail"`) and
+        `model_description` (`"Abigail 1A"`); since options and lots both key on
+        `model_description`, try that first, URL-encoded.
+      parameters:
+        - $ref: "#/components/parameters/ProjectCode"
+        - $ref: "#/components/parameters/ModelCode"
+      responses:
+        "200":
+          description: Products for the model (shape unconfirmed).
+          content:
+            application/json:
+              schema: { type: object }
+
+  /communities/{project_code}/models/{model_code}/rooms:
+    get:
+      operationId: getModelRooms
+      summary: List rooms for a model
+      tags: [Models]
+      x-verified: false
+      description: |
+        ⚠ **UNVERIFIED** — no saved example.
+
+        Likely the *per-model* room list — i.e. the resolved form of `base_model_rooms` (~99
+        rooms) rather than the global 226-entry dictionary. If so, this is the correct way to
+        get a model's rooms and makes the `/models` `rooms` array redundant.
+      parameters:
+        - $ref: "#/components/parameters/ProjectCode"
+        - $ref: "#/components/parameters/ModelCode"
+      responses:
+        "200":
+          description: Rooms for the model (shape unconfirmed).
+          content:
+            application/json:
+              schema: { type: object }
+
+  /communities/{project_code}/models/{model_code}/prices:
+    get:
+      operationId: getModelPrices
+      summary: List prices for a model
+      tags: [Models]
+      x-verified: false
+      description: |
+        ⚠ **UNVERIFIED** — no saved example. Presumably base and/or option pricing for the model.
+      parameters:
+        - $ref: "#/components/parameters/ProjectCode"
+        - $ref: "#/components/parameters/ModelCode"
+      responses:
+        "200":
+          description: Prices for the model (shape unconfirmed).
+          content:
+            application/json:
+              schema: { type: object }
+
+  /communities/{project_code}/models2/{model_code}/products:
+    get:
+      operationId: getModels2Products
+      summary: List products for a model (models2 variant)
+      tags: [Models]
+      x-verified: false
+      description: ⚠ **UNVERIFIED** — no saved example. `models2` counterpart of `getModelProducts`.
+      parameters:
+        - $ref: "#/components/parameters/ProjectCode"
+        - $ref: "#/components/parameters/ModelCode"
+      responses:
+        "200":
+          description: Shape unconfirmed.
+          content:
+            application/json:
+              schema: { type: object }
+
+  /communities/{project_code}/models2/{model_code}/rooms:
+    get:
+      operationId: getModels2Rooms
+      summary: List rooms for a model (models2 variant)
+      tags: [Models]
+      x-verified: false
+      description: ⚠ **UNVERIFIED** — no saved example. `models2` counterpart of `getModelRooms`.
+      parameters:
+        - $ref: "#/components/parameters/ProjectCode"
+        - $ref: "#/components/parameters/ModelCode"
+      responses:
+        "200":
+          description: Shape unconfirmed.
+          content:
+            application/json:
+              schema: { type: object }
+
+  /communities/{project_code}/models2/{model_code}/prices:
+    get:
+      operationId: getModels2Prices
+      summary: List prices for a model (models2 variant)
+      tags: [Models]
+      x-verified: false
+      description: ⚠ **UNVERIFIED** — no saved example. `models2` counterpart of `getModelPrices`.
+      parameters:
+        - $ref: "#/components/parameters/ProjectCode"
+        - $ref: "#/components/parameters/ModelCode"
+      responses:
+        "200":
+          description: Shape unconfirmed.
+          content:
+            application/json:
+              schema: { type: object }
+
+  /product_images:
+    get:
+      operationId: getProductImages
+      summary: List product images
+      tags: [Products]
+      x-verified: false
+      description: |
+        ⚠ **UNVERIFIED** — no saved example.
+
+        Presumably an index of available image names. Note that `Product.image` is **not** a URL
+        or a filename — it is a sentinel flag (`BookYesImage` / `BookNoImage` / empty), so it
+        cannot be fed to this endpoint directly. How an image name is derived from a product is
+        an open question.
+      responses:
+        "200":
+          description: Image index (shape unconfirmed).
+          content:
+            application/json:
+              schema: { type: object }
+
+  /product_images/{image_name}:
+    get:
+      operationId: getProductImage
+      summary: Get product image metadata
+      tags: [Products]
+      x-verified: false
+      description: ⚠ **UNVERIFIED** — no saved example. Presumably metadata for one image.
+      parameters:
+        - $ref: "#/components/parameters/ImageName"
+      responses:
+        "200":
+          description: Image metadata (shape unconfirmed).
+          content:
+            application/json:
+              schema: { type: object }
+
+  /product_images/{image_name}/file_contents:
+    get:
+      operationId: getProductImageFileContents
+      summary: Download product image bytes
+      tags: [Products]
+      x-verified: false
+      description: |
+        ⚠ **UNVERIFIED** — no saved example. Presumably the binary image, though it may equally
+        return base64 inside JSON. Check the `Content-Type` on the first real call.
+      parameters:
+        - $ref: "#/components/parameters/ImageName"
+      responses:
+        "200":
+          description: Image bytes (content type unconfirmed).
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+components:
+
+  securitySchemes:
+    NewStartToken:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        Rails-style token auth. The header value is a structured string carrying **both** a
+        token and an email:
+
+        ```
+        Authorization: Token token="<api_token>", email="<api_email>"
+        ```
+
+        Both `api_token` and `api_email` are blank in the collection — get them from the API
+        owner. The quotes are part of the format; don't strip them.
+
+  parameters:
+    ProjectCode:
+      name: project_code
+      in: path
+      required: true
+      description: Community code from `GET /communities` — e.g. `1682`. Numeric-looking but a string.
+      schema:
+        type: string
+        examples: ["1682", "1684", "1710"]
+
+    LotNumber:
+      name: lot_number
+      in: path
+      required: true
+      description: Zero-padded lot number from `GET .../lots` — e.g. `0902`. Preserve the padding.
+      schema:
+        type: string
+        examples: ["0902", "0986", "1701"]
+
+    ModelCode:
+      name: model_code
+      in: path
+      required: true
+      description: |
+        ⚠ **Undefined in the source collection** — no payload field is named `model_code`.
+        Most likely `model_description` (`"Abigail 1A"`); possibly `model` (`"Abigail"`).
+        URL-encode it either way, since it contains a space.
+      schema:
+        type: string
+        examples: ["Abigail 1A", "Abigail"]
+
+    ImageName:
+      name: image_name
+      in: path
+      required: true
+      description: ⚠ Undefined in the source collection. Derivation from a product is unknown.
+      schema:
+        type: string
+
+  schemas:
+
+    Community:
+      type: object
+      description: A subdivision / neighborhood. The root of the object graph.
+      required: [name, project_code, product_library_code, product_library]
+      properties:
+        name:
+          type: string
+          description: Display name. **Not unique** — `1760` and `1761` are both "Mills Creek".
+          examples: ["Bradbury at Blackridge"]
+        project_code:
+          type: string
+          description: Primary key. Path parameter for every community-scoped endpoint.
+          examples: ["1682"]
+        product_library_code:
+          type: string
+          description: Which product library this community draws from.
+          enum: [SIGN, BIRM]
+        product_library:
+          type: string
+          description: Human-readable library name.
+          examples: ["Master Product Library", "Birmingham Product List"]
+
+    Model:
+      type: object
+      description: A floorplan + elevation combination offered in a community.
+      required: [proj, proj_code, model, elevation, model_description, base_model_price, base_model_rooms, rooms]
+      properties:
+        proj:
+          type: string
+          description: Community name (denormalized from `Community.name`).
+        proj_code:
+          type: string
+          description: Community code (denormalized from `Community.project_code`).
+        model:
+          type: string
+          description: Floorplan name. 17 distinct in the captured example.
+          examples: ["Abigail", "Adler Base"]
+        elevation:
+          type: string
+          description: Elevation variant. 22 distinct.
+          examples: ["1A", "1B", "2A"]
+        model_description:
+          type: string
+          description: |
+            **The join key.** Always `model + " " + elevation`. Unique within a community, and
+            the value `Lot.model_description` and `Option.model_description` reference.
+          examples: ["Abigail 1A"]
+        base_model_price:
+          type: string
+          description: |
+            Decimal string. Note this endpoint emits **one** decimal place (`"530000.0"`) while
+            `Lot.base_model_price` emits two (`"615000.00"`). Normalize before comparing.
+          examples: ["530000.0"]
+        base_model_rooms:
+          type: string
+          description: |
+            **Lowercase CSV of the rooms this model actually has** (~99 codes). This — not the
+            `rooms` array — is the model's room set. 13 of the referenced codes are not present
+            in the `rooms` dictionary, so resolve defensively.
+          examples: ["bdc11,bdc2,bdc3,bdr1,bdr2,btc1,extr,flr1,kti1"]
+        rooms:
+          type: array
+          description: |
+            ⚠ **Global room dictionary, not this model's rooms.** Byte-identical across all 49
+            models (226 entries each). Read it once and discard the rest. `room_code` here is
+            UPPERCASE; `base_model_rooms` and `area_associations` are lowercase — compare
+            case-insensitively.
+          items: { $ref: "#/components/schemas/Room" }
+
+    Room:
+      type: object
+      description: An area within a home. 226 distinct codes.
+      required: [room_code, room_desc]
+      properties:
+        room_code:
+          type: string
+          description: UPPERCASE code. Referenced in lowercase elsewhere in the API.
+          examples: ["BDC11", "KTI1", "EXTR"]
+        room_desc:
+          type: string
+          examples: ["Primary Bed WIC 1", "Kitchen"]
+
+    Lot:
+      type: object
+      description: A physical lot in a community.
+      required: [proj, proj_code, lot, lot_address, lot_status, lot_type, base_model_price, lot_price, lot_premium, options, gross_sale]
+      properties:
+        proj: { type: string, description: Community name (denormalized). }
+        proj_code: { type: string, description: Community code (denormalized). }
+        lot:
+          type: string
+          description: Zero-padded lot number. Unique within the community.
+          examples: ["0902", "1701"]
+        lot_address:
+          type: string
+          description: Single-line address — street, city, ZIP. Not broken into components.
+          examples: ["2306 Old Gould Run, Hoover, 35244"]
+        lot_status:
+          type: string
+          enum: [Open, Sold, Closed]
+          description: |
+            Captured distribution: Closed 237, Sold 47, Open 44. There is no server-side filter.
+        lot_type:
+          type: string
+          enum: [Reg, REG, Spec, Model]
+          description: |
+            ⚠ **Case is inconsistent in the source data** — both `Reg` (245 rows) and `REG`
+            (4 rows) occur. Normalize case before grouping or filtering.
+        model_description:
+          type: [string, "null"]
+          description: |
+            Join to `Model.model_description` — but **do not assume it resolves.** In the
+            captured example 40 of 328 lots are `null` (unassigned), and 14 further values have
+            no matching model, including free-text variants like `"Addington 1C (basement)"`.
+            Match defensively and fall back gracefully.
+          examples: ["Roswell 1B"]
+        base_model_price:
+          type: string
+          description: Decimal string, 2 places.
+          examples: ["615000.00"]
+        lot_price:
+          type: string
+          description: Decimal string. `"0.00"` on every row in the captured example.
+        lot_premium:
+          type: string
+          description: Decimal string. Premium for the specific lot (view, size, corner).
+          examples: ["10000.00"]
+        options:
+          type: string
+          description: Decimal string. Total option dollars on this lot — a sum, not a list.
+          examples: ["101587.00"]
+        gross_sale:
+          type: string
+          description: |
+            Decimal string. **Treat as authoritative, do not recompute.**
+            `base_model_price + options + lot_premium + lot_price` equals `gross_sale` on only
+            245 of 328 lots; 67 non-zero lots genuinely disagree (discounts and incentives are
+            not exposed), and 41 lots — almost all `Open` — are `"0.00"` because they are unsold.
+          examples: ["726587.00"]
+
+    Option:
+      type: object
+      description: |
+        A priced upgrade available on one specific model + elevation. The grain is
+        (`model_description`, `product_code`) — unique in the captured example.
+      required: [product_code, model, elev, model_description, description, short_description, category, category_code, subcategory, subcategory_code, option_type, unit_price, qty, gross_sale, uofm, add_floor_area, room_replacement_rules, moddatetime]
+      properties:
+        product_code:
+          type: string
+          description: |
+            Joins to `Product.product_code`. **This join is clean** — all 116 distinct option
+            products resolve against the product library.
+          examples: ["DOBARCABS"]
+        model: { type: string, description: Floorplan name — joins to `Model.model`. }
+        elev: { type: string, description: "Elevation — joins to `Model.elevation`. Note the abbreviated field name (`elev`, not `elevation`)." }
+        model_description:
+          type: string
+          description: Joins to `Model.model_description`. One stray value (`"Hartley 2B"`) has no matching model.
+        description:
+          type: string
+          description: |
+            Long marketing copy. ⚠ **Truncated in the source data** — values cut off mid-word at
+            ~250 characters. Don't render as the sole description without checking for truncation.
+        short_description:
+          type: string
+          examples: ["Built-in Home Bar"]
+        category:
+          type: string
+          description: Display name. Only `"Drawn Options"` occurs — see the endpoint's scope caveat.
+        category_code:
+          type: string
+          examples: ["01DrawnO"]
+        subcategory:
+          type: string
+          description: |
+            4 values occur: Structural/Plumbing, Windows/Doors/Ceiling, Cabinets, Fireplaces.
+            Only 1 of the 4 also appears in the `steps` subcategory vocabulary.
+        subcategory_code:
+          type: string
+          examples: ["01StrPlu", "02WindDo", "04CabApp", "03Firepl"]
+        option_type:
+          type: string
+          enum: [UPG, OPT]
+          description: "UPG = upgrade (1,341 rows); OPT = option (6 rows). The distinction is undocumented."
+        unit_price:
+          type: string
+          description: Decimal string. Equals `gross_sale` on every captured row (since `qty` is always 1).
+        qty:
+          type: string
+          description: Decimal string. `"1.0"` on every captured row.
+        gross_sale:
+          type: string
+          description: Decimal string — the extended price (`unit_price` × `qty`).
+        uofm:
+          type: string
+          enum: [PKG, EA]
+          description: Unit of measure. PKG 1,334 rows, EA 13 rows.
+        add_floor_area:
+          type: integer
+          description: |
+            Square feet this option adds. The **only genuine integer in the whole API** — every
+            other numeric-looking value is a string.
+          examples: [0, 1094, 1299]
+        room_replacement_rules:
+          $ref: "#/components/schemas/RoomReplacementRules"
+        moddatetime:
+          type: string
+          description: |
+            ⚠ **Malformed timestamp.** Nominally `YYYYMMDD.HHMMSS`, but the value has been
+            round-tripped through a float, so **trailing zeros are lost** — observed lengths are
+            10, 13, 14 and 15 characters (`"20230824.1131"`, `"20230824.11335"`). Right-pad the
+            fractional part to 6 digits before parsing, or you will parse the wrong time.
+          examples: ["20230824.113138"]
+
+    RoomReplacementRules:
+      type: object
+      description: |
+        How selecting this option changes the home's room set — the mechanism behind options
+        that add a basement, bonus room or bathroom.
+      required: [add_rooms, remove_rooms]
+      properties:
+        add_rooms:
+          type: string
+          description: Lowercase CSV of room codes added. May be empty.
+          examples: ["bdcfb1,bdrfb1,btrfb,dec1fb"]
+        remove_rooms:
+          type: string
+          description: |
+            Lowercase CSV of room codes removed. May be empty. 3 of the 126 referenced codes
+            do not resolve against the room dictionary.
+          examples: ["sorr1,sorr2,flr1"]
+
+    Product:
+      type: object
+      description: A catalog product / finish. 2,136 rows, `product_code` unique.
+      required: [product_code, short_description, attribute1_desc, attribute1, image, category_code, subcategory_code, lastmoddatetime]
+      properties:
+        product_code:
+          type: string
+          description: Primary key. Referenced by `Option.product_code`.
+          examples: ["110FREEZER", "0000Base"]
+        short_description:
+          type: string
+          description: The only description field — there is no long description here.
+          examples: ["110 Outlet on a Dedicated Circuit"]
+        attribute1_desc:
+          type: string
+          description: |
+            Label for the product's single variant axis — e.g. `Color**`, `Finish**`, `Size**`.
+            15 distinct values. A trailing `**` appears to mark the attribute as required
+            (both `Finish` and `Finish**` occur). Empty on products with no variants.
+          examples: ["Location**", "Color**"]
+        attribute1:
+          type: string
+          description: |
+            ⚠ **A CSV choice-list, not a single value.** 809 of 2,136 products carry multiple
+            comma-separated choices (up to 55). 1,125 products have this empty. Split on comma
+            to build a variant picker. Despite the `1` suffix there is **no `attribute2`** —
+            products support exactly one variant axis.
+          examples: ["72\" AFF,Counter Height,In Ceiling,Typical Height"]
+        image:
+          type: string
+          description: |
+            ⚠ **A sentinel flag, not a filename or URL.** Observed values: `BookYesImage`
+            (1,207), empty (472), `BookNoImage` (447), plus **misspellings in the source data** —
+            `BookNolmage` (lowercase L, 2 rows) and `BookYesIamge` (1 row) — and an outlier
+            `OB49` (4 rows). Match case-insensitively on a `yes`/`no` substring rather than on
+            equality, or you will misclassify rows.
+        category_code:
+          type: string
+          description: |
+            15 distinct. Largest: `05FlrTil` (463), `08Trim` (292), `09Lighti` (279),
+            `07CabTop` (276), `01DrawnO` (211).
+        subcategory_code:
+          type: string
+          description: 116 distinct.
+          examples: ["81Electr", "01Brick", "12Cabs"]
+        lastmoddatetime:
+          type: string
+          description: |
+            ⚠ Same malformed float-derived timestamp as `Option.moddatetime` — lengths of 14 and
+            15 occur. Right-pad the fractional part to 6 digits before parsing.
+          examples: ["20260512.120006"]
+
+    Step:
+      type: object
+      description: |
+        One stage of the buyer-facing configurator flow. 48 steps in the captured example,
+        ordered by `sortorder`.
+      x-join-warning: |
+        `categories[].category` and `subcategories[].subcategory` are **display names, not
+        codes**, while `Option` and `Product` carry `category_code` / `subcategory_code`. There
+        is no code in this payload, so joining presentation to catalog requires string matching
+        — and it does not match well: only 1 of the 4 option subcategory names appears in the
+        105-name step vocabulary. Ask the API owner for a code on this endpoint.
+      required: [step, sortorder, area_associations, categories]
+      properties:
+        step:
+          type: string
+          description: Step name.
+          examples: ["Exterior Finishes", "Kitchen", "Primary Bathroom"]
+        sortorder:
+          type: integer
+          description: 1-based display order.
+        area_associations:
+          type: string
+          description: |
+            Lowercase CSV of room codes this step applies to. **This join is clean** — all 226
+            distinct codes resolve against the `/models` room dictionary (compare
+            case-insensitively).
+          examples: ["extrfddd,extrfdsd,extrfp,extr,xgar1"]
+        categories:
+          type: array
+          items: { $ref: "#/components/schemas/StepCategory" }
+
+    StepCategory:
+      type: object
+      required: [category, sortorder, subcategories]
+      properties:
+        category:
+          type: string
+          description: Display name — no code is provided. 40 distinct across all steps.
+          examples: ["Brick & Stone", "Roofing"]
+        sortorder: { type: integer }
+        subcategories:
+          type: array
+          items: { $ref: "#/components/schemas/StepSubcategory" }
+
+    StepSubcategory:
+      type: object
+      required: [subcategory, sortorder]
+      properties:
+        subcategory:
+          type: string
+          description: Display name — no code is provided. 105 distinct across all steps.
+          examples: ["Brick", "Stone", "Mortar"]
+        sortorder: { type: integer }
+</script>
+
+<script>
+(function () {
+  // Theme: follow the OS by default, let the reader override; persist if we can.
+  var root = document.documentElement;
+  var saved = null;
+  try { saved = localStorage.getItem("newstart-theme"); } catch (e) {}
+  if (saved) root.setAttribute("data-theme", saved);
+
+  document.getElementById("theme-toggle").addEventListener("click", function () {
+    var dark = root.getAttribute("data-theme")
+      ? root.getAttribute("data-theme") === "dark"
+      : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var next = dark ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("newstart-theme", next); } catch (e) {}
+  });
+
+  // Download the embedded OpenAPI spec as a real .yaml file.
+  document.getElementById("dl-spec").addEventListener("click", function () {
+    var text = document.getElementById("spec-src").textContent;
+    var url = URL.createObjectURL(new Blob([text], { type: "application/yaml" }));
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "newstart-openapi.yaml";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  });
+})();
+</script>
+</body>
+</html>

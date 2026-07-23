@@ -1,0 +1,18 @@
+<% if skus.any? %>
+  <% skus.each do |sku| %>
+    <button type="button" class="sku-result"
+            data-action="processing#addSku"
+            data-sku-id="<%= sku.id %>"
+            data-code="<%= sku.product_code %>"
+            data-desc="<%= sku.display_name %>"
+            <%= "disabled" if selected_ids.include?(sku.id) %>>
+      <span class="sku-result__code"><%= sku.product_code %></span>
+      <span class="sku-result__desc"><%= sku.display_name %></span>
+      <% if sku.category_code.present? %>
+        <span class="sku-result__cat"><%= sku.category_code %></span>
+      <% end %>
+    </button>
+  <% end %>
+<% else %>
+  <p class="text-mono-sm" style="padding:8px 2px;">No matching SKUs.</p>
+<% end %>

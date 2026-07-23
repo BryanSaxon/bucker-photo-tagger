@@ -1,0 +1,85 @@
+<% content_for :title, "Process — #{@photo.name}" %>
+
+<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; flex-wrap:wrap;">
+  <div>
+    <%= link_to "← Back to photos", photos_path, class: "text-mono-sm", style: "text-decoration:none;" %>
+    <div style="display:flex; align-items:center; gap:12px; margin-top:8px;">
+      <h1 class="page-title"><%= @photo.name %></h1>
+      <%= render "photos/status_badge", photo: @photo %>
+    </div>
+    <% if @photo.complete? && @photo.processed_by %>
+      <p class="text-mono-sm" style="margin-top:6px;">
+        Processed by <%= @photo.processed_by.email_address %>
+        <%= "on #{@photo.processed_at.strftime('%b %-d, %Y')}" if @photo.processed_at %>
+      </p>
+    <% end %>
+  </div>
+  <%= button_to "Delete", photo_path(@photo), method: :delete, class: "btn btn--danger btn--sm",
+        form: { data: { turbo_confirm: "Delete this photo permanently?" } } %>
+</div>
+
+<%= form_with model: @photo, url: photo_path(@photo), method: :patch, data: {
+      controller: "processing",
+      processing_sku_search_url_value: sku_search_photo_path(@photo)
+    } do |f| %>
+
+  <div class="process-grid">
+    <%# ---- Left: the photo (≈75% width) ---- %>
+    <div>
+      <div class="process-stage" data-processing-target="stage">
+        <div style="position:relative; display:inline-block; max-width:100%; line-height:0;">
+          <%= image_tag @photo.image, data: { processing_target: "image", action: "click->processing#placePin" }, alt: @photo.name %>
+          <div data-processing-target="markers" style="position:absolute; inset:0; pointer-events:none;"></div>
+        </div>
+      </div>
+      <p class="text-mono-sm" style="margin-top:10px;">
+        Tip: add a SKU, then press <strong>Pin</strong> on it and click the photo to mark where it appears.
+      </p>
+    </div>
+
+    <%# ---- Right: selection panel ---- %>
+    <div class="process-panel">
+      <div class="panel card-pad">
+        <span class="eyebrow">Placement</span>
+        <div class="field" style="margin-top:12px;">
+          <%= f.label :community_id, "Community", class: "label" %>
+          <%= f.collection_select :community_id, @communities, :id, :name,
+                { include_blank: "Select a community…" },
+                { class: "select", data: { processing_target: "community", action: "change->processing#filterFloorplans" } } %>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <%= f.label :floorplan_id, "Floorplan", class: "label" %>
+          <%= f.select :floorplan_id,
+                @floorplans.map { |fp| [fp.display_name, fp.id, { "data-community-id": fp.community_id }] },
+                { include_blank: "Select a floorplan…" },
+                { class: "select", data: { processing_target: "floorplan" } } %>
+        </div>
+      </div>
+
+      <div class="panel card-pad">
+        <span class="eyebrow">SKUs in this photo</span>
+        <div class="field" style="margin:12px 0;">
+          <input type="search" placeholder="Search name, code, category…" class="input"
+                 data-processing-target="search" data-action="input->processing#search" autocomplete="off">
+          <div data-processing-target="results" class="sku-results" style="margin-top:8px;"></div>
+        </div>
+
+        <span class="label" style="margin-top:4px;">Selected
+          <span class="mono" style="color:var(--muted-2);" data-processing-target="selectedCount"></span>
+        </span>
+        <div class="selected-skus" data-processing-target="selected">
+          <% @photo_skus.each do |ps| %>
+            <%= render "photos/selected_sku", photo_sku: ps %>
+          <% end %>
+        </div>
+        <p class="text-mono-sm" data-processing-target="emptyHint"
+           style="<%= 'display:none;' if @photo_skus.any? %>">No SKUs tagged yet.</p>
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <%= f.submit(@photo.complete? ? "Save changes" : "Save & mark complete", class: "btn btn--primary", style: "flex:1;") %>
+        <%= link_to "Cancel", photos_path, class: "btn btn--ghost" %>
+      </div>
+    </div>
+  </div>
+<% end %>

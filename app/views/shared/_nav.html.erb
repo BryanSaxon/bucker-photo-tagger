@@ -1,0 +1,22 @@
+<nav class="app-nav">
+  <div class="app-nav__inner">
+    <%= link_to root_path, class: "app-brand" do %>
+      <span class="app-brand__mark">P</span>
+      <span class="app-brand__name">Photo&nbsp;Tagger</span>
+    <% end %>
+
+    <div class="app-nav__links">
+      <%= link_to "Photos", photos_path,
+            class: class_names("app-nav__link", "is-active": controller_name == "photos") %>
+      <%= link_to "SKU Library", skus_path,
+            class: class_names("app-nav__link", "is-active": %w[skus sku_syncs].include?(controller_name)) %>
+    </div>
+
+    <div class="app-nav__spacer"></div>
+
+    <% if Current.user %>
+      <span class="app-nav__user"><%= Current.user.email_address %></span>
+    <% end %>
+    <%= button_to "Sign out", session_path, method: :delete, class: "btn btn--ghost btn--sm" %>
+  </div>
+</nav>

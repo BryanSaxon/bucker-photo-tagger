@@ -1,0 +1,34 @@
+<%# Sync trigger + latest-run status. Auto-refreshes while a sync is running. %>
+<div class="card card-pad" style="min-width:280px;"
+     data-controller="sync-status"
+     data-sync-status-running-value="<%= latest_sync&.running? || false %>">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
+    <span class="label" style="margin:0;">Catalog sync</span>
+    <% if latest_sync&.running? %>
+      <span class="badge badge--warn"><span class="badge__dot"></span>Running</span>
+    <% elsif latest_sync&.completed? %>
+      <span class="badge badge--done"><span class="badge__dot"></span>Synced</span>
+    <% elsif latest_sync&.failed? %>
+      <span class="badge" style="color:var(--error); border-color:#fecaca; background:#fef2f2;"><span class="badge__dot" style="background:var(--error);"></span>Failed</span>
+    <% else %>
+      <span class="badge badge--neutral"><span class="badge__dot"></span>Never run</span>
+    <% end %>
+  </div>
+
+  <% if latest_sync %>
+    <p class="text-mono-sm" style="margin-bottom:12px;">
+      <% if latest_sync.completed? %>
+        <%= number_with_delimiter(latest_sync.synced_count) %> SKUs · <%= time_ago_in_words(latest_sync.finished_at) %> ago
+      <% elsif latest_sync.running? %>
+        Started <%= time_ago_in_words(latest_sync.started_at) %> ago…
+      <% elsif latest_sync.failed? %>
+        <span style="color:var(--error);"><%= truncate(latest_sync.error_message, length: 80) %></span>
+      <% end %>
+    </p>
+  <% end %>
+
+  <%= button_to sku_syncs_path, method: :post, class: "btn btn--primary btn--sm", style: "width:100%;",
+        disabled: latest_sync&.running?, form: { style: "margin:0;" } do %>
+    <%= latest_sync&.running? ? "Sync in progress…" : "Refresh SKUs from API" %>
+  <% end %>
+</div>

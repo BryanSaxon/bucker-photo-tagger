@@ -1,0 +1,33 @@
+<% content_for :title, "Upload photos" %>
+
+<div style="margin-bottom:22px;">
+  <%= link_to "← Back to photos", photos_path, class: "text-mono-sm", style: "text-decoration:none;" %>
+  <h1 class="page-title" style="margin-top:10px;">Upload photos</h1>
+  <p class="muted" style="margin-top:6px; font-size:14px;">Add one or more example photos. Each one lands in the queue as “needs processing.”</p>
+</div>
+
+<div class="panel card-pad" style="max-width:640px;">
+  <%= form_with model: @photo, url: photos_path, method: :post, html: {
+        multipart: true, data: { controller: "upload" } } do |f| %>
+
+    <div class="field">
+      <label class="label" for="photo_images">Photo files</label>
+      <label data-upload-target="dropzone" data-action="dragover->upload#dragover dragleave->upload#dragleave drop->upload#drop"
+             style="display:block; border:1.5px dashed var(--border); border-radius:12px; padding:28px; text-align:center; cursor:pointer; background:var(--canvas); transition:border-color .15s, background .15s;">
+        <div style="font-size:28px; margin-bottom:6px;">📸</div>
+        <div style="font:600 14px 'Sora',sans-serif;">Click to choose photos or drag them here</div>
+        <div class="text-mono-sm" style="margin-top:4px;">JPG, PNG, WebP — select as many as you like</div>
+        <%= file_field_tag "photo[images][]", multiple: true, accept: "image/*", id: "photo_images",
+              data: { upload_target: "input", action: "upload#preview" }, style: "display:none;" %>
+      </label>
+    </div>
+
+    <div data-upload-target="preview" class="photo-grid" style="margin-bottom:16px;"></div>
+
+    <div style="display:flex; gap:10px; align-items:center;">
+      <%= f.submit "Upload photos", class: "btn btn--primary", data: { upload_target: "submit" } %>
+      <%= link_to "Cancel", photos_path, class: "btn btn--ghost" %>
+      <span class="text-mono-sm" data-upload-target="count"></span>
+    </div>
+  <% end %>
+</div>
