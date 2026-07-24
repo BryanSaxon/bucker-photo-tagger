@@ -7,6 +7,8 @@ services:
     runtime: ruby
     plan: starter
     buildCommand: "./bin/render-build.sh"
+    # DB setup runs once here (web only) so it never races with the worker.
+    preDeployCommand: "./bin/render-migrate.sh"
     startCommand: "bundle exec puma -C config/puma.rb"
     healthCheckPath: /up
     envVars:
