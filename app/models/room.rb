@@ -3,6 +3,7 @@ class Room < ApplicationRecord
   # the inline `rooms` list on the models2 endpoint.
   belongs_to :community
   has_many :lot_selections, dependent: :nullify
+  has_many :photos, dependent: :nullify
 
   validates :room_code, presence: true, uniqueness: { scope: :community_id }
 

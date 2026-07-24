@@ -28,18 +28,28 @@ export default class extends Controller {
     this.previewTarget.innerHTML = ""
 
     files.forEach((file) => {
-      if (!file.type.startsWith("image/")) return
+      const isZip = file.type.includes("zip") || file.name.toLowerCase().endsWith(".zip")
+      if (!file.type.startsWith("image/") && !isZip) return
+
       const card = document.createElement("div")
       card.className = "photo-card"
       const thumb = document.createElement("span")
       thumb.className = "photo-card__thumb"
-      const img = document.createElement("img")
-      img.src = URL.createObjectURL(file)
-      img.onload = () => URL.revokeObjectURL(img.src)
-      thumb.appendChild(img)
+      if (isZip) {
+        thumb.style.display = "grid"
+        thumb.style.placeItems = "center"
+        thumb.style.fontSize = "30px"
+        thumb.textContent = "🗜️"
+      } else {
+        const img = document.createElement("img")
+        img.src = URL.createObjectURL(file)
+        img.onload = () => URL.revokeObjectURL(img.src)
+        thumb.appendChild(img)
+      }
       const body = document.createElement("div")
       body.className = "photo-card__body"
-      body.innerHTML = `<span class="photo-card__name">${file.name}</span>`
+      const label = isZip ? `${file.name} (archive)` : file.name
+      body.innerHTML = `<span class="photo-card__name">${label}</span>`
       card.appendChild(thumb)
       card.appendChild(body)
       this.previewTarget.appendChild(card)

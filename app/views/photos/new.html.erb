@@ -3,24 +3,54 @@
 <div style="margin-bottom:22px;">
   <%= link_to "← Back to photos", photos_path, class: "text-mono-sm", style: "text-decoration:none;" %>
   <h1 class="page-title" style="margin-top:10px;">Upload photos</h1>
-  <p class="muted" style="margin-top:6px; font-size:14px;">Add one or more example photos. Each one lands in the queue as “needs processing.”</p>
+  <p class="muted" style="margin-top:6px; font-size:14px;">Add example photos in a batch — pick many files or drop a .zip. Each image lands in the queue as “needs processing.” Optionally tag them with a location to speed up processing.</p>
 </div>
+
+<%
+  plans_json = @floorplans.map { |id, name, elev, cid| { i: id, l: [ name, elev ].compact_blank.join(" "), c: cid } }
+  rooms_json = @rooms.map { |id, desc, code, cid| { i: id, l: (desc.presence || code), c: cid } }
+%>
 
 <div class="panel card-pad" style="max-width:640px;">
   <%= form_with model: @photo, url: photos_path, method: :post, html: {
-        multipart: true, data: { controller: "upload" } } do |f| %>
+        multipart: true, data: { controller: "upload catalog-select",
+          catalog_select_plans_value: plans_json.to_json,
+          catalog_select_rooms_value: rooms_json.to_json } } do |f| %>
 
     <div class="field">
       <label class="label" for="photo_images">Photo files</label>
       <label data-upload-target="dropzone" data-action="dragover->upload#dragover dragleave->upload#dragleave drop->upload#drop"
              style="display:block; border:1.5px dashed var(--border); border-radius:12px; padding:28px; text-align:center; cursor:pointer; background:var(--canvas); transition:border-color .15s, background .15s;">
         <div style="font-size:28px; margin-bottom:6px;">📸</div>
-        <div style="font:600 14px 'Sora',sans-serif;">Click to choose photos or drag them here</div>
-        <div class="text-mono-sm" style="margin-top:4px;">JPG, PNG, WebP — select as many as you like</div>
-        <%= file_field_tag "photo[images][]", multiple: true, accept: "image/*", id: "photo_images",
+        <div style="font:600 14px 'Sora',sans-serif;">Click to choose photos, drop them here, or add a .zip</div>
+        <div class="text-mono-sm" style="margin-top:4px;">JPG, PNG, WebP, GIF or a ZIP archive — as many as you like</div>
+        <%= file_field_tag "photo[images][]", multiple: true, accept: "image/*,.zip,application/zip", id: "photo_images",
               data: { upload_target: "input", action: "upload#preview" }, style: "display:none;" %>
       </label>
     </div>
+
+    <fieldset style="border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:16px;">
+      <legend class="text-mono-sm" style="padding:0 6px;">Location (optional)</legend>
+      <p class="text-mono-sm" style="margin:0 0 10px; color:var(--muted);">Pick any of these — choosing one narrows the rest. Stored with each photo to help tag products later.</p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="field" style="margin:0;">
+          <label class="label" for="photo_community_id">Community</label>
+          <%= select_tag "photo[community_id]", options_from_collection_for_select(@communities, :id, :name),
+                include_blank: "Any community", id: "photo_community_id",
+                data: { catalog_select_target: "community", action: "catalog-select#communityChanged" } %>
+        </div>
+        <div class="field" style="margin:0;">
+          <label class="label" for="photo_floorplan_id">Plan</label>
+          <%= select_tag "photo[floorplan_id]", "".html_safe, include_blank: "Any plan", id: "photo_floorplan_id",
+                data: { catalog_select_target: "plan", action: "catalog-select#planChanged" } %>
+        </div>
+        <div class="field" style="margin:0; grid-column:1 / -1;">
+          <label class="label" for="photo_room_id">Room</label>
+          <%= select_tag "photo[room_id]", "".html_safe, id: "photo_room_id", disabled: true,
+                data: { catalog_select_target: "room", action: "catalog-select#roomChanged" } %>
+        </div>
+      </div>
+    </fieldset>
 
     <div data-upload-target="preview" class="photo-grid" style="margin-bottom:16px;"></div>
 

@@ -8,10 +8,11 @@ module Photos
     def self.call(...) = new(...).call
 
     # sku_entries: array of { id:, pos_x:, pos_y: } hashes (string keys ok).
-    def initialize(photo:, community_id:, floorplan_id:, sku_entries:, user:)
+    def initialize(photo:, community_id:, floorplan_id:, sku_entries:, user:, room_id: nil)
       @photo = photo
       @community_id = community_id.presence
       @floorplan_id = floorplan_id.presence
+      @room_id = room_id.presence
       @sku_entries = Array(sku_entries)
       @user = user
     end
@@ -21,7 +22,7 @@ module Photos
       return Result.new(success?: false, error: error) if error
 
       Photo.transaction do
-        @photo.update!(community_id: @community_id, floorplan_id: @floorplan_id)
+        @photo.update!(community_id: @community_id, floorplan_id: @floorplan_id, room_id: @room_id)
         reconcile_skus
         @photo.mark_complete!(@user)
       end

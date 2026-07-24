@@ -45,14 +45,21 @@
           <%= f.label :community_id, "Community", class: "label" %>
           <%= f.collection_select :community_id, @communities, :id, :name,
                 { include_blank: "Select a community…" },
-                { class: "select", data: { processing_target: "community", action: "change->processing#filterFloorplans" } } %>
+                { class: "select", data: { processing_target: "community", action: "change->processing#contextChanged" } } %>
         </div>
-        <div class="field" style="margin-bottom:0;">
+        <div class="field">
           <%= f.label :floorplan_id, "Floorplan", class: "label" %>
           <%= f.select :floorplan_id,
                 @floorplans.map { |fp| [fp.display_name, fp.id, { "data-community-id": fp.community_id }] },
                 { include_blank: "Select a floorplan…" },
                 { class: "select", data: { processing_target: "floorplan" } } %>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <%= f.label :room_id, "Room", class: "label" %>
+          <%= f.select :room_id,
+                @rooms.map { |r| [r.to_s, r.id, { "data-community-id": r.community_id }] },
+                { include_blank: "Select a room…" },
+                { class: "select", data: { processing_target: "room" } } %>
         </div>
       </div>
 
@@ -61,6 +68,12 @@
         <div class="field" style="margin:12px 0;">
           <input type="search" placeholder="Search name, code, category…" class="input"
                  data-processing-target="search" data-action="input->processing#search" autocomplete="off">
+          <% if @context_scope_available %>
+            <label class="text-mono-sm" style="display:flex; align-items:center; gap:6px; margin-top:8px; cursor:pointer;">
+              <input type="checkbox" checked data-processing-target="scopeToggle" data-action="change->processing#search">
+              Limit to products for this photo’s location
+            </label>
+          <% end %>
           <div data-processing-target="results" class="sku-results" style="margin-top:8px;"></div>
         </div>
 

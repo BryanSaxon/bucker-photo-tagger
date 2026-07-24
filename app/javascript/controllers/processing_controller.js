@@ -5,7 +5,7 @@ import { Controller } from "@hotwired/stimulus"
 // filtering, and click-to-pin location tagging on the photo.
 export default class extends Controller {
   static targets = [
-    "stage", "image", "markers", "community", "floorplan",
+    "stage", "image", "markers", "community", "floorplan", "room", "scopeToggle",
     "search", "results", "selected", "selectedItem", "selectedCount", "emptyHint"
   ]
   static values = { skuSearchUrl: String }
@@ -14,8 +14,15 @@ export default class extends Controller {
     this.pinningId = null
     this.searchTimer = null
     this.filterFloorplans()
+    this.filterRooms()
     this.renderMarkers()
     this.updateMeta()
+  }
+
+  // Community changed: re-narrow both the plan and room selects.
+  contextChanged() {
+    this.filterFloorplans()
+    this.filterRooms()
   }
 
   // ---- SKU search (debounced fetch into the results container) ----
@@ -28,6 +35,9 @@ export default class extends Controller {
     const q = this.searchTarget.value.trim()
     const url = new URL(this.skuSearchUrlValue, window.location.origin)
     url.searchParams.set("q", q)
+    if (this.hasScopeToggleTarget && this.scopeToggleTarget.checked) {
+      url.searchParams.set("scoped", "1")
+    }
     try {
       const res = await fetch(url, { headers: { "Accept": "text/html" } })
       this.resultsTarget.innerHTML = await res.text()
@@ -114,6 +124,22 @@ export default class extends Controller {
       if (!matches && opt.selected) { opt.selected = false; selectionCleared = true }
     })
     if (selectionCleared) this.floorplanTarget.value = ""
+  }
+
+  // ---- Community → Room filtering ----
+  filterRooms() {
+    if (!this.hasCommunityTarget || !this.hasRoomTarget) return
+    const communityId = this.communityTarget.value
+    let cleared = false
+
+    Array.from(this.roomTarget.options).forEach((opt) => {
+      if (!opt.value) return
+      const matches = communityId && opt.dataset.communityId === communityId
+      opt.hidden = !matches
+      if (!matches && opt.selected) { opt.selected = false; cleared = true }
+    })
+    if (cleared) this.roomTarget.value = ""
+    this.roomTarget.disabled = !communityId
   }
 
   // ---- Markers ----

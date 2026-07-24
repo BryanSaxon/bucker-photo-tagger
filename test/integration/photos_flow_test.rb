@@ -92,4 +92,57 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "AAA", @response.body
   end
+
+  test "the new upload page renders the cascading location selects" do
+    sign_in_as(@user)
+    get new_photo_path
+    assert_response :success
+    assert_select "select#photo_community_id"
+    assert_select "select#photo_floorplan_id"
+    assert_select "select#photo_room_id"
+  end
+
+  test "uploading with a location stamps it on every created photo" do
+    room = @community.rooms.create!(room_code: "KIT", room_desc: "Kitchen")
+    sign_in_as(@user)
+    files = [ fixture_file_upload("sample.png", "image/png"), fixture_file_upload("sample.png", "image/png") ]
+
+    assert_difference -> { Photo.count }, 2 do
+      post photos_path, params: { photo: {
+        images: files, community_id: @community.id, floorplan_id: @floorplan.id, room_id: room.id
+      } }
+    end
+    assert_redirected_to photos_path
+    assert Photo.all.all? { |p| p.community_id == @community.id && p.floorplan_id == @floorplan.id && p.room_id == room.id }
+  end
+
+  test "saving selections persists the chosen room" do
+    room = @community.rooms.create!(room_code: "KIT", room_desc: "Kitchen")
+    photo = create_photo(name: "Kitchen")
+    sign_in_as(@user)
+
+    patch photo_path(photo), params: { photo: {
+      community_id: @community.id, floorplan_id: @floorplan.id, room_id: room.id, skus: []
+    } }
+
+    assert_redirected_to photos_path
+    assert_equal room.id, photo.reload.room_id
+  end
+
+  test "scoped sku_search narrows to products available for the photo's context" do
+    elsewhere = Sku.create!(product_code: "ZZZ", short_description: "Faucet elsewhere")
+    Option.create!(community: @community, sku: @sku, product_code: @sku.product_code) # AAA available here; ZZZ not
+    photo = create_photo(name: "Kitchen")
+    photo.update!(community: @community)
+    sign_in_as(@user)
+
+    get sku_search_photo_path(photo, q: "faucet", scoped: "1")
+    assert_response :success
+    assert_match "AAA", @response.body
+    assert_no_match "ZZZ", @response.body
+
+    get sku_search_photo_path(photo, q: "faucet") # unscoped shows both
+    assert_match "ZZZ", @response.body
+    assert_equal elsewhere.product_code, "ZZZ"
+  end
 end

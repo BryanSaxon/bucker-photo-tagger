@@ -33,6 +33,24 @@ class Sku < ApplicationRecord
 
   scope :in_category, ->(code) { code.present? ? where(category_code: code) : all }
 
+  # Narrow to the products actually available for a photo's captured context,
+  # to speed up tagging. A room (the most specific) limits to products selected
+  # in that room across the community's lots; a community limits to products in
+  # its priced options or any lot selection. With neither, returns everything.
+  scope :for_context, ->(community_id: nil, room_id: nil) {
+    if room_id.present?
+      selected = LotSelection.where(room_id: room_id).where.not(sku_id: nil).select(:sku_id)
+      where(id: selected)
+    elsif community_id.present?
+      opted = Option.where(community_id: community_id).where.not(sku_id: nil).select(:sku_id)
+      selected = LotSelection.joins(:lot).where(lots: { community_id: community_id })
+        .where.not(sku_id: nil).select(:sku_id)
+      where(id: opted).or(where(id: selected))
+    else
+      all
+    end
+  }
+
   # The source catalog has no true "name" — fall back to the code when the
   # short description is blank.
   def display_name

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_24_020828) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_24_030813) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -173,12 +173,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_020828) do
     t.string "name", null: false
     t.datetime "processed_at"
     t.bigint "processed_by_id"
+    t.bigint "room_id"
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["community_id"], name: "index_photos_on_community_id"
     t.index ["floorplan_id"], name: "index_photos_on_floorplan_id"
     t.index ["name"], name: "index_photos_on_name"
     t.index ["processed_by_id"], name: "index_photos_on_processed_by_id"
+    t.index ["room_id"], name: "index_photos_on_room_id"
     t.index ["status"], name: "index_photos_on_status"
   end
 
@@ -304,6 +306,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_020828) do
   add_foreign_key "photo_skus", "skus"
   add_foreign_key "photos", "communities"
   add_foreign_key "photos", "floorplans"
+  add_foreign_key "photos", "rooms", on_delete: :nullify
   add_foreign_key "photos", "users", column: "processed_by_id"
   add_foreign_key "rooms", "communities", on_delete: :cascade
   add_foreign_key "sessions", "users"
