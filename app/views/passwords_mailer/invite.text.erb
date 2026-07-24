@@ -1,0 +1,7 @@
+<%= @invited_by ? "#{@invited_by} has invited you" : "You've been invited" %> to Photo Tagger,
+the Signature Homes photo-tagging tool. Set a password to activate your account
+(<%= @user.email_address %>) and sign in:
+
+<%= edit_password_url(@token) %>
+
+This invitation link expires in 14 days.

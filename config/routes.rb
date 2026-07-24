@@ -1,4 +1,7 @@
 Rails.application.routes.draw do
+  # Preview outgoing mail in development at /mail.
+  mount LetterOpenerWeb::Engine, at: "/mail" if Rails.env.development?
+
   resource :session
   resources :passwords, param: :token
 
@@ -12,6 +15,11 @@ Rails.application.routes.draw do
   # SKU catalog library + manual sync trigger.
   resources :skus, only: %i[index show]
   resources :sku_syncs, only: :create
+
+  # Admin-only user management (invite / role / remove).
+  resources :users, only: %i[index create update destroy] do
+    member { post :resend_invite }
+  end
 
   root "photos#index"
 

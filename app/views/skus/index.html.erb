@@ -11,8 +11,8 @@
 </div>
 
 <div class="card card-pad">
-  <%= form_with url: skus_path, method: :get, style: "display:flex; gap:10px; align-items:center; margin:6px 0 16px; flex-wrap:wrap;" do |f| %>
-    <%= f.search_field :q, value: @query, placeholder: "Search name, code, category…", class: "input", style: "flex:1; min-width:220px;" %>
+  <%= form_with url: skus_path, method: :get, style: "display:flex; gap:10px; align-items:center; margin:6px 0 16px; flex-wrap:nowrap;" do |f| %>
+    <%= f.search_field :q, value: @query, placeholder: "Search name, code, category…", class: "input", style: "flex:1 1 auto; min-width:0;" %>
     <%= f.submit "Search", class: "btn btn--secondary" %>
     <% if @query.present? %>
       <%= link_to "Clear", skus_path, class: "btn btn--ghost btn--sm" %>

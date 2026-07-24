@@ -60,8 +60,8 @@ export default class extends Controller {
     const id = el.dataset.skuId
     if (this.isSelected(id)) return
 
-    // Add to the TOP of the selected list so the newest item is right there to pin.
-    this.selectedTarget.insertAdjacentHTML("afterbegin",
+    // Append to the END so existing pin numbers don't shift around.
+    this.selectedTarget.insertAdjacentHTML("beforeend",
       this.rowHtml(id, el.dataset.code, el.dataset.desc))
 
     // Hide the results and clear the search so the user can type the next item.
@@ -70,7 +70,6 @@ export default class extends Controller {
     this.searchTarget.focus()
 
     this.updateMeta()
-    this.renderMarkers()
   }
 
   removeSku(event) {
@@ -86,12 +85,32 @@ export default class extends Controller {
   }
 
   // ---- Pin placement ----
-  startPin(event) {
+  // The pin button toggles: start placing when unpinned, remove the pin when
+  // already pinned (so a mis-placed SKU can be re-pinned somewhere else).
+  togglePin(event) {
     const row = event.currentTarget.closest(".selected-sku")
+    if (row.classList.contains("is-pinned")) {
+      this.unpin(row)
+    } else {
+      this.startPin(row)
+    }
+  }
+
+  startPin(row) {
     const id = row.dataset.skuId
     if (this.pinningId === id) { this.stopPinning(); return }
     this.pinningId = id
     this.stageTarget.classList.add("is-pinning")
+  }
+
+  unpin(row) {
+    row.querySelector('[data-role="pos_x"]').value = ""
+    row.querySelector('[data-role="pos_y"]').value = ""
+    row.classList.remove("is-pinned")
+    const label = row.querySelector('[data-role="pin-label"]')
+    if (label) label.textContent = "Pin"
+    if (this.pinningId === row.dataset.skuId) this.stopPinning()
+    this.removeMarker(row.dataset.skuId)
   }
 
   stopPinning() {
@@ -112,7 +131,7 @@ export default class extends Controller {
     row.querySelector('[data-role="pos_y"]').value = y.toFixed(4)
     row.classList.add("is-pinned")
     const label = row.querySelector('[data-role="pin-label"]')
-    if (label) label.textContent = "Pinned"
+    if (label) label.textContent = "Unpin"
 
     this.stopPinning()
     this.renderMarkers()
@@ -200,7 +219,7 @@ export default class extends Controller {
         <input type="hidden" name="photo[skus][][pos_y]" value="" data-role="pos_y">
         <span class="selected-sku__code">${esc(code)}</span>
         <span class="selected-sku__desc">${esc(desc)}</span>
-        <button type="button" class="btn btn--ghost btn--sm" data-action="processing#startPin" data-role="pin">📍 <span data-role="pin-label">Pin</span></button>
+        <button type="button" class="btn btn--ghost btn--sm" data-action="processing#togglePin" data-role="pin">📍 <span data-role="pin-label">Pin</span></button>
         <button type="button" class="chip__remove" data-action="processing#removeSku" aria-label="Remove">×</button>
       </div>`
   }

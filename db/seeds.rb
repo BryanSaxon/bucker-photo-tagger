@@ -8,8 +8,9 @@
 # ---- Login user ----------------------------------------------------------
 user = User.find_or_initialize_by(email_address: "accounts@bryansaxon.com")
 user.password = "password"
+user.role = :admin
 user.save!
-puts "Seed user: #{user.email_address} / password"
+puts "Seed admin: #{user.email_address} / password"
 
 # ---- Communities & floorplans -------------------------------------------
 communities = {

@@ -1,0 +1,60 @@
+class UsersController < ApplicationController
+  before_action :require_admin
+  before_action :set_user, only: %i[update destroy resend_invite]
+
+  def index
+    @users = User.order(:email_address)
+    @user = User.new
+  end
+
+  # Invite a new user: create them and email a set-password link.
+  def create
+    @user = User.invite!(email_address: user_params[:email_address], role: role_param)
+    PasswordsMailer.invite(@user, invited_by: Current.user.email_address).deliver_later
+    redirect_to users_path, notice: "Invitation sent to #{@user.email_address}."
+  rescue ActiveRecord::RecordInvalid => e
+    @users = User.order(:email_address)
+    flash.now[:alert] = e.record.errors.full_messages.to_sentence
+    render :index, status: :unprocessable_entity
+  end
+
+  # Change a user's role.
+  def update
+    if @user.update(role: role_param)
+      redirect_to users_path, notice: "#{@user.email_address} is now #{@user.role}."
+    else
+      redirect_to users_path, alert: @user.errors.full_messages.to_sentence
+    end
+  end
+
+  def destroy
+    if @user == Current.user
+      redirect_to users_path, alert: "You can’t remove your own account."
+    else
+      @user.destroy
+      redirect_to users_path, notice: "Removed #{@user.email_address}.", status: :see_other
+    end
+  end
+
+  def resend_invite
+    if @user.pending_invite?
+      PasswordsMailer.invite(@user, invited_by: Current.user.email_address).deliver_later
+      redirect_to users_path, notice: "Invitation resent to #{@user.email_address}."
+    else
+      redirect_to users_path, alert: "#{@user.email_address} has already activated their account."
+    end
+  end
+
+  private
+    def set_user
+      @user = User.find(params[:id])
+    end
+
+    def user_params
+      params.require(:user).permit(:email_address, :role)
+    end
+
+    def role_param
+      params.dig(:user, :role).presence_in(User.roles.keys) || "employee"
+    end
+end

@@ -57,17 +57,26 @@ Rails.application.configure do
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.
   # config.action_mailer.raise_delivery_errors = false
 
-  # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "example.com" }
+  # Host used by links generated in mailer templates. Set credentials.app.host
+  # (e.g. "app.yourdomain.com") before deploying.
+  config.action_mailer.default_url_options = {
+    host: Rails.application.credentials.dig(:app, :host) || "example.com",
+    protocol: "https"
+  }
+  config.action_mailer.raise_delivery_errors = true
 
-  # Specify outgoing SMTP server. Remember to add smtp/* credentials via bin/rails credentials:edit.
-  # config.action_mailer.smtp_settings = {
-  #   user_name: Rails.application.credentials.dig(:smtp, :user_name),
-  #   password: Rails.application.credentials.dig(:smtp, :password),
-  #   address: "smtp.example.com",
-  #   port: 587,
-  #   authentication: :plain
-  # }
+  # Deliver mail through SendGrid over SMTP. Add credentials.sendgrid.api_key
+  # (SendGrid uses the literal username "apikey" plus the API key as password).
+  config.action_mailer.delivery_method = :smtp
+  config.action_mailer.smtp_settings = {
+    address: "smtp.sendgrid.net",
+    port: 587,
+    domain: Rails.application.credentials.dig(:app, :host),
+    user_name: "apikey",
+    password: Rails.application.credentials.dig(:sendgrid, :api_key),
+    authentication: :plain,
+    enable_starttls_auto: true
+  }
 
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
   # the I18n.default_locale when a translation cannot be found).

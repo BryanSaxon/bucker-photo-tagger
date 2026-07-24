@@ -1,0 +1,16 @@
+<p>Hi,</p>
+
+<p>
+  <%= @invited_by ? "#{@invited_by} has invited you" : "You've been invited" %>
+  to Photo Tagger, the Signature Homes photo-tagging tool. Set a password to
+  activate your account (<%= @user.email_address %>) and sign in.
+</p>
+
+<p>
+  <%= link_to "Set your password", edit_password_url(@token),
+        style: "display:inline-block; padding:10px 18px; background:#F5A623; color:#1a1a1a; border-radius:8px; text-decoration:none; font-weight:600;" %>
+</p>
+
+<p style="color:#6B7280; font-size:13px;">
+  This invitation link expires in 14 days.
+</p>
