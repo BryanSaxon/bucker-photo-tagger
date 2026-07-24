@@ -47,4 +47,24 @@ class UserTest < ActiveSupport::TestCase
     assert_equal user, User.find_by_token_for(:invitation, user.generate_token_for(:invitation))
     assert_nil User.find_by_token_for(:password_reset, "nonsense")
   end
+
+  test "new users are active" do
+    assert users(:two).active?
+    assert_not users(:two).deactivated?
+  end
+
+  test "deactivate! blocks the user and ends live sessions; reactivate! restores" do
+    user = users(:two)
+    user.sessions.create!
+    assert_difference -> { user.sessions.count }, -1 do
+      user.deactivate!
+    end
+    assert user.deactivated?
+    assert_includes User.deactivated, user
+    assert_not_includes User.active, user
+
+    user.reactivate!
+    assert user.active?
+    assert_includes User.active, user
+  end
 end

@@ -183,6 +183,8 @@ h2.section-title { font: 600 18px/1.2 "Sora", sans-serif; letter-spacing: -.01em
 .flash { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 12px; font: 500 13.5px "Sora", sans-serif; margin-bottom: 16px; }
 .flash--notice { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
 .flash--alert { background: #fef2f2; border: 1px solid #fecaca; color: var(--error); }
+.flash__close { margin-left: auto; background: none; border: 0; font-size: 18px; line-height: 1; cursor: pointer; color: inherit; opacity: .55; padding: 0 2px; }
+.flash__close:hover { opacity: 1; }
 
 /* ---------- Tabs / segmented control ---------- */
 .segmented { display: inline-flex; padding: 3px; background: var(--gutter); border: 1px solid var(--border); border-radius: 11px; gap: 2px; }

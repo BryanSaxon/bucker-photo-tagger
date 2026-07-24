@@ -1,6 +1,6 @@
 class UsersController < ApplicationController
   before_action :require_admin
-  before_action :set_user, only: %i[update destroy resend_invite]
+  before_action :set_user, only: %i[update destroy resend_invite deactivate reactivate]
 
   def index
     @users = User.order(:email_address)
@@ -43,6 +43,21 @@ class UsersController < ApplicationController
     else
       redirect_to users_path, alert: "#{@user.email_address} has already activated their account."
     end
+  end
+
+  # Soft-disable: blocks sign-in and ends live sessions, but keeps the record.
+  def deactivate
+    if @user == Current.user
+      redirect_to users_path, alert: "You can’t deactivate your own account."
+    else
+      @user.deactivate!
+      redirect_to users_path, notice: "Deactivated #{@user.email_address}."
+    end
+  end
+
+  def reactivate
+    @user.reactivate!
+    redirect_to users_path, notice: "Reactivated #{@user.email_address}."
   end
 
   private

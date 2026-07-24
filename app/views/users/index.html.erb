@@ -6,13 +6,6 @@
   <p class="muted" style="margin-top:6px; font-size:14px;">Invite teammates and manage their access. Invited users get an email to set their password.</p>
 </div>
 
-<% if alert = flash[:alert] %>
-  <div class="flash flash--alert" id="alert" style="margin-bottom:16px;"><span><%= alert %></span></div>
-<% end %>
-<% if notice = flash[:notice] %>
-  <div class="flash flash--notice" id="notice" style="margin-bottom:16px;"><span><%= notice %></span></div>
-<% end %>
-
 <div class="panel card-pad" style="margin-bottom:22px;">
   <span class="eyebrow">Invite a user</span>
   <%= form_with url: users_path, method: :post, style: "display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-top:12px;" do |f| %>
@@ -58,17 +51,25 @@
               <% end %>
             </td>
             <td>
-              <% if user.pending_invite? %>
+              <% if user.deactivated? %>
+                <span class="badge badge--warn"><span class="badge__dot"></span>Deactivated</span>
+              <% elsif user.pending_invite? %>
                 <span class="badge badge--neutral"><span class="badge__dot"></span>Pending invite</span>
               <% else %>
                 <span class="badge badge--done"><span class="badge__dot"></span>Active</span>
               <% end %>
             </td>
             <td style="text-align:right; white-space:nowrap;">
-              <% if user.pending_invite? %>
+              <% if user.pending_invite? && user.active? %>
                 <%= button_to "Resend invite", resend_invite_user_path(user), method: :post, class: "btn btn--ghost btn--sm" %>
               <% end %>
               <% unless user == Current.user %>
+                <% if user.deactivated? %>
+                  <%= button_to "Reactivate", reactivate_user_path(user), method: :post, class: "btn btn--ghost btn--sm" %>
+                <% else %>
+                  <%= button_to "Deactivate", deactivate_user_path(user), method: :post, class: "btn btn--ghost btn--sm",
+                        form: { style: "display:inline;", data: { turbo_confirm: "Deactivate #{user.email_address}? They won’t be able to sign in." } } %>
+                <% end %>
                 <%= button_to "Remove", user_path(user), method: :delete, class: "btn btn--ghost btn--sm",
                       form: { style: "display:inline;", data: { turbo_confirm: "Remove #{user.email_address}?" } } %>
               <% end %>

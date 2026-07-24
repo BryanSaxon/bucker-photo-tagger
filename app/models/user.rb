@@ -5,6 +5,9 @@ class User < ApplicationRecord
 
   enum :role, { employee: 0, admin: 1 }, default: :employee
 
+  scope :active, -> { where(deactivated_at: nil) }
+  scope :deactivated, -> { where.not(deactivated_at: nil) }
+
   normalizes :email_address, with: ->(e) { e.strip.downcase }
 
   validates :email_address, presence: true, uniqueness: { case_sensitive: false },
@@ -36,6 +39,26 @@ class User < ApplicationRecord
   # An invited user who hasn't set their own password yet.
   def pending_invite?
     invited_at.present?
+  end
+
+  def active?
+    deactivated_at.nil?
+  end
+
+  def deactivated?
+    !active?
+  end
+
+  # Block sign-in and end any live sessions immediately.
+  def deactivate!
+    transaction do
+      update!(deactivated_at: Time.current)
+      sessions.destroy_all
+    end
+  end
+
+  def reactivate!
+    update!(deactivated_at: nil)
   end
 
   def display_name

@@ -18,7 +18,11 @@ Rails.application.routes.draw do
 
   # Admin-only user management (invite / role / remove).
   resources :users, only: %i[index create update destroy] do
-    member { post :resend_invite }
+    member do
+      post :resend_invite
+      post :deactivate
+      post :reactivate
+    end
   end
 
   root "photos#index"

@@ -66,6 +66,33 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_select "div", /can.t remove your own account/i
   end
 
+  test "admin can deactivate and reactivate another user" do
+    sign_in_as(@admin)
+
+    post deactivate_user_path(@employee)
+    assert_redirected_to users_path
+    assert @employee.reload.deactivated?
+
+    post reactivate_user_path(@employee)
+    assert @employee.reload.active?
+  end
+
+  test "admin cannot deactivate themselves" do
+    sign_in_as(@admin)
+    post deactivate_user_path(@admin)
+    assert @admin.reload.active?
+    follow_redirect!
+    assert_select "div", /can.t deactivate your own account/i
+  end
+
+  test "a deactivated user cannot sign in" do
+    @employee.deactivate!
+    post session_path, params: { email_address: @employee.email_address, password: "password" }
+    assert_redirected_to new_session_path
+    follow_redirect!
+    assert_select "div", /deactivated/i
+  end
+
   test "resending an invite only works for pending users" do
     sign_in_as(@admin)
     pending = User.invite!(email_address: "pending@example.com")

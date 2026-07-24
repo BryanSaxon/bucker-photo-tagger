@@ -1,7 +1,9 @@
 <% flash.each do |type, message| %>
   <% next if message.blank? %>
-  <% css = type.to_s == "notice" ? "flash--notice" : "flash--alert" %>
-  <div class="flash <%= css %>">
+  <% notice = type.to_s == "notice" %>
+  <div class="flash <%= notice ? "flash--notice" : "flash--alert" %>"
+       data-controller="flash" data-flash-dismiss-after-value="<%= notice ? 6000 : 0 %>">
     <span><%= message %></span>
+    <button type="button" class="flash__close" data-action="flash#dismiss" aria-label="Dismiss">&times;</button>
   </div>
 <% end %>
