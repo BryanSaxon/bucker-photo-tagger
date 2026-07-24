@@ -73,7 +73,22 @@ h2.section-title { font: 600 18px/1.2 "Sora", sans-serif; letter-spacing: -.01em
   background: linear-gradient(135deg, var(--gold), var(--gold-dark));
   display: grid; place-items: center; color: var(--ink); font-weight: 700; font-size: 15px;
 }
+.app-brand__logo { height: 26px; width: auto; flex: none; display: block; }
 .app-brand__name { font: 700 16px "Sora", sans-serif; letter-spacing: -.01em; }
+
+/* Pagy pagination */
+.pagy-wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+.pagy { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.pagy a, .pagy .gap {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 32px; height: 32px; padding: 0 9px; border: 1px solid var(--border);
+  border-radius: 8px; text-decoration: none; color: var(--text);
+  font: 600 13px "IBM Plex Mono", monospace; background: transparent;
+}
+.pagy a:hover { border-color: var(--gold); }
+.pagy a.current { background: var(--gold); border-color: var(--gold-dark); color: var(--ink); }
+.pagy a[aria-disabled="true"]:not(.current), .pagy .gap { opacity: .4; pointer-events: none; }
+.pagy-info { font: 400 12px "IBM Plex Mono", monospace; color: var(--muted); }
 .app-nav__links { display: flex; align-items: center; gap: 4px; margin-left: 8px; }
 .app-nav__spacer { flex: 1; }
 .app-nav__link {

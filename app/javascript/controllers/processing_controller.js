@@ -60,10 +60,17 @@ export default class extends Controller {
     const id = el.dataset.skuId
     if (this.isSelected(id)) return
 
-    this.selectedTarget.insertAdjacentHTML("beforeend",
+    // Add to the TOP of the selected list so the newest item is right there to pin.
+    this.selectedTarget.insertAdjacentHTML("afterbegin",
       this.rowHtml(id, el.dataset.code, el.dataset.desc))
-    el.disabled = true
+
+    // Hide the results and clear the search so the user can type the next item.
+    this.resultsTarget.innerHTML = ""
+    this.searchTarget.value = ""
+    this.searchTarget.focus()
+
     this.updateMeta()
+    this.renderMarkers()
   }
 
   removeSku(event) {

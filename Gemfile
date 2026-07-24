@@ -45,6 +45,9 @@ gem "image_processing", "~> 1.2"
 # Extract images from uploaded .zip archives (batch upload)
 gem "rubyzip", "~> 3.0", require: "zip"
 
+# Fast, lightweight pagination
+gem "pagy", "~> 9.3"
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"

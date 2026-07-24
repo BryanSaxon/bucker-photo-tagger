@@ -8,8 +8,8 @@ class PhotosController < ApplicationController
     @query = params[:q].to_s.strip
 
     scope = @show_completed ? Photo.complete : Photo.unprocessed
-    scope = scope.search(@query)
-    @photos = scope.recent.with_attached_image
+    scope = scope.search(@query).recent.with_attached_image
+    @pagy, @photos = pagy(scope)
 
     @unprocessed_count = Photo.unprocessed.count
     @complete_count = Photo.complete.count

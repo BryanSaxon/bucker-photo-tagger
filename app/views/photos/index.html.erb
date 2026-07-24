@@ -57,6 +57,7 @@
       <% end %>
     <% end %>
   </div>
+  <%= render "shared/pagination", pagy: @pagy %>
 <% else %>
   <div class="card empty-state">
     <div class="empty-state__icon">🏷️</div>

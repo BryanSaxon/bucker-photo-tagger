@@ -13,10 +13,8 @@
 <div class="card card-pad">
   <%= form_with url: skus_path, method: :get, style: "display:flex; gap:10px; align-items:center; margin:6px 0 16px; flex-wrap:wrap;" do |f| %>
     <%= f.search_field :q, value: @query, placeholder: "Search name, code, category…", class: "input", style: "flex:1; min-width:220px;" %>
-    <%= f.select :category, options_for_select([["All categories", ""]] + @category_codes.map { |c| [c, c] }, @category),
-          {}, { class: "select", style: "width:200px;" } %>
-    <%= f.submit "Filter", class: "btn btn--secondary" %>
-    <% if @query.present? || @category.present? %>
+    <%= f.submit "Search", class: "btn btn--secondary" %>
+    <% if @query.present? %>
       <%= link_to "Clear", skus_path, class: "btn btn--ghost btn--sm" %>
     <% end %>
   <% end %>
@@ -31,7 +29,6 @@
             <th>Category</th>
             <th>Subcategory</th>
             <th>Variants</th>
-            <th style="text-align:center;">Img</th>
             <th></th>
           </tr>
         </thead>
@@ -43,21 +40,18 @@
               <td class="text-mono-sm"><%= sku.category_code %></td>
               <td class="text-mono-sm"><%= sku.subcategory_code %></td>
               <td class="text-mono-sm"><%= sku.attribute1_desc.presence || "—" %></td>
-              <td class="text-mono-sm" style="text-align:center;"><%= sku.image? ? "🖼️" : "—" %></td>
               <td class="text-mono-sm" style="text-align:right; color:var(--muted-2);">→</td>
             </tr>
           <% end %>
         </tbody>
       </table>
     </div>
-    <% if @total > @skus.size %>
-      <p class="text-mono-sm" style="margin-top:14px;">Showing the first <%= @skus.size %> of <%= number_with_delimiter(@total) %> — refine your search to narrow results.</p>
-    <% end %>
+    <%= render "shared/pagination", pagy: @pagy %>
   <% else %>
     <div class="empty-state">
       <div class="empty-state__icon">📦</div>
-      <% if @query.present? || @category.present? %>
-        <p>No SKUs match your filters.</p>
+      <% if @query.present? %>
+        <p>No SKUs match your search.</p>
       <% else %>
         <p style="margin-bottom:4px;">No SKUs synced yet.</p>
         <p class="text-mono-sm">Trigger a sync to pull the catalog from the NewStart API.</p>
