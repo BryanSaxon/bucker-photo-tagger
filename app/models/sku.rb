@@ -2,6 +2,11 @@ class Sku < ApplicationRecord
   has_many :photo_skus, dependent: :destroy
   has_many :photos, through: :photo_skus
 
+  # The full set of image records the NewStart catalog lists for this product
+  # (metadata only — the API serves no image bytes). Kept in sync from
+  # /product_images by Skus::SyncService, keyed by product_code.
+  has_many :sku_images, dependent: :destroy
+
   validates :product_code, presence: true, uniqueness: { case_sensitive: false }
 
   scope :ordered, -> { order(:short_description, :product_code) }

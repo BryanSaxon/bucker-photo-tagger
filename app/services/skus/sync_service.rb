@@ -24,6 +24,7 @@ module Skus
       products = @client.product_library
       images = fetch_images
       count = upsert(products, images)
+      sync_image_records(images)
       prune_absent(products)
 
       @sku_sync.mark_completed!(count)
@@ -58,6 +59,70 @@ module Skus
     rescue => e
       Rails.logger.warn("[Skus::SyncService] image fetch failed: #{e.class}: #{e.message}")
       []
+    end
+
+    # Persist the full per-image metadata as SkuImage rows so the app keeps its
+    # own copy of the catalog's image list, keyed by product_code. This is what
+    # lets a SKU surface every variant image rather than the single condensed
+    # primary stored on the skus row.
+    #
+    # Best-effort like the rest of the image handling: a problem here logs and
+    # returns without failing the catalog sync.
+    def sync_image_records(images)
+      return if images.blank?
+
+      sku_ids = Sku.pluck(:product_code, :id).to_h
+      now = Time.current
+
+      rows = images.filter_map do |img|
+        file_id = img["file_id"].presence
+        code = img["product_code"].presence
+        next unless file_id && code
+
+        sku_id = sku_ids[code]
+        next unless sku_id # an image for a product not in the catalog
+
+        {
+          sku_id: sku_id,
+          product_code: code,
+          file_id: file_id,
+          filename: img["filename"],
+          filemimetype: img["filemimetype"],
+          title: img["title"],
+          description: img["description"],
+          source_type: img["source_type"],
+          attribute1: img["attribute1"],
+          attribute2: img["attribute2"],
+          archived: ActiveModel::Type::Boolean.new.cast(img["isarchived"]) || false,
+          source_modified_at: img["modifieddate"],
+          created_at: now,
+          updated_at: now
+        }
+      end
+
+      # file_id is globally unique in the catalog and is our conflict key, so a
+      # repeated file_id in the payload would break the batch — de-dupe first.
+      rows.uniq! { |r| r[:file_id] }
+
+      rows.each_slice(BATCH_SIZE) do |batch|
+        SkuImage.upsert_all(batch, unique_by: :file_id, update_only:
+          %i[sku_id product_code filename filemimetype title description
+             source_type attribute1 attribute2 archived source_modified_at])
+      end
+
+      prune_image_records(rows)
+    rescue => e
+      Rails.logger.warn("[Skus::SyncService] image record sync failed: #{e.class}: #{e.message}")
+    end
+
+    # Full-replace semantics for image records: drop rows whose file_id is no
+    # longer in the catalog. Guarded so an empty image payload can't wipe them.
+    def prune_image_records(rows)
+      file_ids = rows.map { |r| r[:file_id] }
+      return if file_ids.empty?
+
+      removed = SkuImage.where.not(file_id: file_ids).delete_all
+      Rails.logger.info("[Skus::SyncService] pruned #{removed} stale image records") if removed.positive?
     end
 
     # Build product_code => image metadata, choosing a representative (primary)

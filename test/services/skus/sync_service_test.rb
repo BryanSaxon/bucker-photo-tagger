@@ -55,6 +55,46 @@ module Skus
       assert_equal 0, bbb.images_count
     end
 
+    test "stores every catalog image as a SkuImage keyed to its product" do
+      sync = SkuSync.create!(status: :running)
+
+      Skus::SyncService.call(sync, client: FakeClient.new(products, images))
+
+      aaa = Sku.find_by(product_code: "AAA")
+      # Both live images are stored (the archived old.jpg is still recorded, flagged).
+      assert_equal 3, aaa.sku_images.count
+      primary = aaa.sku_images.find_by(file_id: "F-1")
+      assert primary.primary?
+      assert_equal "AAA.JPG", primary.filename
+      assert_equal "AAA", primary.product_code
+      archived = aaa.sku_images.find_by(file_id: "F-3")
+      assert archived.archived?
+    end
+
+    test "resyncing prunes image records that left the catalog" do
+      sync = SkuSync.create!(status: :running)
+      Skus::SyncService.call(sync, client: FakeClient.new(products, images))
+      assert SkuImage.exists?(file_id: "F-2")
+
+      # Second run: AAA now has only its primary image.
+      fewer = [ { "product_code" => "AAA", "filename" => "AAA.JPG", "filemimetype" => "image/jpeg",
+                  "file_id" => "F-1", "source_type" => "Product", "isarchived" => false } ]
+      Skus::SyncService.call(SkuSync.create!(status: :running), client: FakeClient.new(products, fewer))
+
+      assert SkuImage.exists?(file_id: "F-1")
+      assert_not SkuImage.exists?(file_id: "F-2"), "dropped variant should be pruned"
+      assert_not SkuImage.exists?(file_id: "F-3")
+    end
+
+    test "an empty image payload does not wipe stored image records" do
+      Skus::SyncService.call(SkuSync.create!(status: :running), client: FakeClient.new(products, images))
+      assert_equal 3, SkuImage.count
+
+      # A run where images come back empty must leave existing records intact.
+      Skus::SyncService.call(SkuSync.create!(status: :running), client: FakeClient.new(products, []))
+      assert_equal 3, SkuImage.count, "empty image response must not prune records"
+    end
+
     test "image fetch failure does not fail the whole sync" do
       client = FakeClient.new(products, nil)
       def client.product_images = raise(Newstart::Client::RequestError, "images down")

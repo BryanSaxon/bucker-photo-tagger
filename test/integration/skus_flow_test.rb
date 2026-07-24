@@ -22,15 +22,21 @@ class SkusFlowTest < ActionDispatch::IntegrationTest
     assert_no_match "Faucet", @response.body
   end
 
-  test "sku show page renders catalog details and image metadata" do
+  test "sku show page renders catalog details and image records" do
     sku = Sku.create!(product_code: "AAA", short_description: "Faucet", category_code: "07CabTop",
-      image_filename: "AAA.JPG", image_mimetype: "image/jpeg", image_file_id: "F-1", images_count: 3)
+      image_filename: "AAA.JPG", image_mimetype: "image/jpeg", image_file_id: "F-1", images_count: 2)
+    sku.sku_images.create!(product_code: "AAA", file_id: "F-1", filename: "AAA.JPG",
+      filemimetype: "image/jpeg", source_type: "Product", title: "Faucet chrome")
+    sku.sku_images.create!(product_code: "AAA", file_id: "F-2", filename: "AAA-black.jpg",
+      source_type: "ProductAttr", attribute1: "Black")
     sign_in_as(@user)
 
     get sku_path(sku)
     assert_response :success
     assert_match "Faucet", @response.body
-    assert_match "AAA.JPG", @response.body
+    assert_match "AAA.JPG", @response.body        # primary image record
+    assert_match "AAA-black.jpg", @response.body   # variant image record
+    assert_match "Black", @response.body           # variant label
     assert_match "07CabTop", @response.body
   end
 

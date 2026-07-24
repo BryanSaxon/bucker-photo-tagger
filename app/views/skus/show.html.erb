@@ -65,27 +65,36 @@
     </div>
   </div>
 
-  <%# Image metadata sidebar %>
+  <%# Image records sidebar — every image the catalog lists for this SKU %>
   <div class="panel card-pad">
-    <span class="eyebrow">Image</span>
-    <% if @sku.image? %>
-      <div style="margin-top:12px; aspect-ratio:4/3; border-radius:12px; background:var(--gutter); border:1px solid var(--border); display:grid; place-items:center; text-align:center; padding:16px;">
-        <div>
-          <div style="font-size:30px;">🖼️</div>
-          <div class="mono" style="font-size:12px; color:var(--muted); margin-top:6px; word-break:break-all;"><%= @sku.image_filename %></div>
-        </div>
+    <span class="eyebrow">Images <% if @sku_images.any? %>(<%= @sku_images.size %>)<% end %></span>
+    <% if @sku_images.any? %>
+      <div class="stack" style="gap:10px; margin-top:12px; max-height:520px; overflow-y:auto;">
+        <% @sku_images.each do |img| %>
+          <div style="border:1px solid var(--border); border-radius:12px; padding:12px; background:var(--gutter);<%= " opacity:0.55;" if img.archived? %>">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <% if img.primary? %>
+                <span class="badge badge--done"><span class="badge__dot"></span>Primary</span>
+              <% else %>
+                <span class="badge badge--neutral"><span class="badge__dot"></span>Variant</span>
+              <% end %>
+              <% if img.variant_label %><span class="chip" style="padding:4px 10px;"><%= img.variant_label %></span><% end %>
+              <% if img.archived? %><span class="badge badge--neutral">Archived</span><% end %>
+            </div>
+            <div style="font-weight:600; margin-top:8px;"><%= img.display_title %></div>
+            <table class="data-table" style="margin-top:8px;">
+              <tbody>
+                <tr><td class="label" style="margin:0; border:none;">Filename</td><td class="mono" style="word-break:break-all;"><%= img.filename.presence || "—" %></td></tr>
+                <tr><td class="label" style="margin:0; border:none;">Type</td><td class="mono"><%= img.filemimetype.presence || "—" %></td></tr>
+                <tr><td class="label" style="margin:0; border:none;">File ID</td><td class="mono" style="font-size:10px; word-break:break-all;"><%= img.file_id %></td></tr>
+              </tbody>
+            </table>
+          </div>
+        <% end %>
       </div>
-      <table class="data-table" style="margin-top:14px;">
-        <tbody>
-          <tr><td class="label" style="margin:0; border:none;">Filename</td><td class="mono" style="word-break:break-all;"><%= @sku.image_filename %></td></tr>
-          <tr><td class="label" style="margin:0; border:none;">Type</td><td class="mono"><%= @sku.image_mimetype.presence || "—" %></td></tr>
-          <tr><td class="label" style="margin:0; border:none;">Images</td><td class="mono"><%= @sku.images_count %></td></tr>
-          <tr><td class="label" style="margin:0; border:none;">File ID</td><td class="mono" style="font-size:10px; word-break:break-all;"><%= @sku.image_file_id %></td></tr>
-        </tbody>
-      </table>
       <p class="text-mono-sm" style="margin-top:12px; line-height:1.5;">
-        The NewStart catalog exposes this image’s metadata only — it serves no
-        endpoint that returns the image bytes, so the picture itself can’t be shown.
+        The NewStart catalog exposes image metadata only — it serves no endpoint
+        that returns the image bytes, so the pictures themselves can’t be shown.
       </p>
     <% else %>
       <div class="empty-state" style="padding:32px 12px;">

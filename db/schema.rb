@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_23_034303) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_24_013838) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -97,6 +97,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_23_034303) do
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
+  create_table "sku_images", force: :cascade do |t|
+    t.boolean "archived", default: false, null: false
+    t.string "attribute1"
+    t.string "attribute2"
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "file_id", null: false
+    t.string "filemimetype"
+    t.string "filename"
+    t.string "product_code", null: false
+    t.bigint "sku_id", null: false
+    t.string "source_modified_at"
+    t.string "source_type"
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.index ["file_id"], name: "index_sku_images_on_file_id", unique: true
+    t.index ["product_code"], name: "index_sku_images_on_product_code"
+    t.index ["sku_id"], name: "index_sku_images_on_sku_id"
+  end
+
   create_table "sku_syncs", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "error_message"
@@ -145,4 +165,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_23_034303) do
   add_foreign_key "photos", "floorplans"
   add_foreign_key "photos", "users", column: "processed_by_id"
   add_foreign_key "sessions", "users"
+  add_foreign_key "sku_images", "skus", on_delete: :cascade
 end

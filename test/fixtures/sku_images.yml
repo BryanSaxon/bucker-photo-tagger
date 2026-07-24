@@ -1,0 +1,3 @@
+# Intentionally empty: SkuImage rows are created per-test (see the sync service
+# and model tests) rather than loaded as fixtures, so file_id uniqueness and the
+# belongs_to :sku association are controlled by each test.
