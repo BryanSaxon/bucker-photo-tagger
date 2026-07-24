@@ -1,7 +1,9 @@
 module Photos
-  # Persists a processor's selections from the processing screen: the community,
-  # the floorplan, and the set of tagged SKUs (with optional pin coordinates),
-  # then marks the photo complete and records who processed it.
+  # Persists a processor's selections from the processing screen: the optional
+  # placement (community / floorplan / room) and the set of tagged SKUs (with
+  # optional pin coordinates), then marks the photo complete and records who
+  # processed it. Placement is not required — a photo can be completed with any,
+  # all, or none of it set.
   class SaveSelections
     Result = Struct.new(:success?, :error, keyword_init: true)
 
@@ -18,11 +20,8 @@ module Photos
     end
 
     def call
-      error = validation_error
-      return Result.new(success?: false, error: error) if error
-
       Photo.transaction do
-        @photo.update!(community_id: @community_id, floorplan_id: @floorplan_id, room_id: @room_id)
+        @photo.update!(community_id: resolved_community_id, floorplan_id: @floorplan_id, room_id: @room_id)
         reconcile_skus
         @photo.mark_complete!(@user)
       end
@@ -34,11 +33,12 @@ module Photos
 
     private
 
-    def validation_error
-      return "Please choose a community." if @community_id.blank?
-      return "Please choose a floorplan." if @floorplan_id.blank?
-
-      nil
+    # Placement is optional; back-fill the community from a chosen floorplan or
+    # room so the stored context stays internally consistent.
+    def resolved_community_id
+      @community_id ||
+        (@floorplan_id && Floorplan.where(id: @floorplan_id).pick(:community_id)) ||
+        (@room_id && Room.where(id: @room_id).pick(:community_id))
     end
 
     # Rebuild the photo's SKU tags to exactly match the submitted selection,

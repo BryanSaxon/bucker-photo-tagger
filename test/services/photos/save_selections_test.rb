@@ -34,17 +34,21 @@ module Photos
       assert_in_delta 0.4, pinned.pos_y
     end
 
-    test "requires a community" do
-      result = call(sku_entries: [], community_id: nil)
-      assert_not result.success?
-      assert_match "community", result.error
-      assert @photo.reload.unprocessed?
+    test "completes with no placement selected (placement is optional)" do
+      result = call(sku_entries: [], community_id: nil, floorplan_id: nil)
+
+      assert result.success?
+      @photo.reload
+      assert @photo.complete?
+      assert_nil @photo.community_id
+      assert_nil @photo.floorplan_id
     end
 
-    test "requires a floorplan" do
-      result = call(sku_entries: [], floorplan_id: nil)
-      assert_not result.success?
-      assert_match "floorplan", result.error
+    test "back-fills the community from a lone floorplan" do
+      result = call(sku_entries: [], community_id: nil, floorplan_id: @floorplan.id)
+
+      assert result.success?
+      assert_equal @community.id, @photo.reload.community_id
     end
 
     test "reconciles deselected skus on re-save" do

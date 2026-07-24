@@ -13,7 +13,6 @@ class SkusController < ApplicationController
   # and the photos it has been tagged in.
   def show
     @sku = Sku.find(params[:id])
-    @sku_images = @sku.sku_images.primary_first
     @tagged_photos = @sku.photos.complete.recent.with_attached_image
   end
 end

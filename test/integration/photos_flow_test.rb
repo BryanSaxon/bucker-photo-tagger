@@ -74,14 +74,27 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
     assert_equal [ @sku.id ], photo.sku_ids
   end
 
-  test "saving without a community re-renders with an error" do
+  test "saving completes the photo even with no placement selected" do
     photo = create_photo(name: "Kitchen")
     sign_in_as(@user)
 
-    patch photo_path(photo), params: { photo: { community_id: "", floorplan_id: "", skus: [] } }
+    patch photo_path(photo), params: { photo: { community_id: "", floorplan_id: "", room_id: "", skus: [] } }
 
-    assert_response :unprocessable_entity
-    assert photo.reload.unprocessed?
+    assert_redirected_to photos_path
+    photo.reload
+    assert photo.complete?
+    assert_nil photo.community_id
+    assert_nil photo.floorplan_id
+  end
+
+  test "saving with only a floorplan back-fills its community" do
+    photo = create_photo(name: "Kitchen")
+    sign_in_as(@user)
+
+    patch photo_path(photo), params: { photo: { floorplan_id: @floorplan.id, skus: [] } }
+
+    assert_redirected_to photos_path
+    assert_equal @community.id, photo.reload.community_id
   end
 
   test "sku_search returns matching results" do
