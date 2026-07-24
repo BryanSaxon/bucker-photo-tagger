@@ -43,7 +43,8 @@ export default class extends Controller {
   populatePlans() {
     const cid = this.communityTarget.value
     const items = this.plansValue.filter((p) => !cid || String(p.c) === cid)
-    this.fill(this.planTarget, items, "Any plan", this.planTarget.value)
+    const empty = cid ? "No plans synced for this community" : "Any plan"
+    this.fill(this.planTarget, items, "Any plan", this.planTarget.value, empty)
   }
 
   populateRooms() {
@@ -55,15 +56,17 @@ export default class extends Controller {
       return
     }
     const items = this.roomsValue.filter((r) => String(r.c) === cid)
-    this.fill(this.roomTarget, items, "Any room", this.roomTarget.value)
-    this.roomTarget.disabled = false
+    this.fill(this.roomTarget, items, "Any room", this.roomTarget.value, "No rooms synced for this community")
+    this.roomTarget.disabled = items.length === 0
   }
 
-  // Rebuild a select from items, keeping the current value if still valid.
-  fill(select, items, placeholder, keep) {
+  // Rebuild a select from items, keeping the current value if still valid. When
+  // there are no items, show `emptyText` (defaults to the placeholder) so an
+  // unsynced community reads clearly instead of looking like an empty select.
+  fill(select, items, placeholder, keep, emptyText = placeholder) {
     const keepValid = items.some((i) => String(i.i) === String(keep))
     select.innerHTML = ""
-    select.appendChild(new Option(placeholder, ""))
+    select.appendChild(new Option(items.length ? placeholder : emptyText, ""))
     items.forEach((i) => select.appendChild(new Option(i.l, i.i)))
     select.value = keepValid ? String(keep) : ""
   }

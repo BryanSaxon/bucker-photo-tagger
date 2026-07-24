@@ -11,7 +11,7 @@
   rooms_json = @rooms.map { |id, desc, code, cid| { i: id, l: (desc.presence || code), c: cid } }
 %>
 
-<div class="panel card-pad" style="max-width:640px;">
+<div class="panel card-pad">
   <%= form_with model: @photo, url: photos_path, method: :post, html: {
         multipart: true, data: { controller: "upload catalog-select",
           catalog_select_plans_value: plans_json.to_json,
