@@ -67,14 +67,18 @@ h2.section-title { font: 600 18px/1.2 "Sora", sans-serif; letter-spacing: -.01em
   max-width: 1180px; margin: 0 auto; height: 100%;
   padding: 0 20px; display: flex; align-items: center; gap: 20px;
 }
-.app-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+.app-brand { display: flex; align-items: center; gap: 14px; text-decoration: none; color: var(--text); }
 .app-brand__mark {
   width: 30px; height: 30px; border-radius: 8px; flex: none;
   background: linear-gradient(135deg, var(--gold), var(--gold-dark));
   display: grid; place-items: center; color: var(--ink); font-weight: 700; font-size: 15px;
 }
 .app-brand__logo { height: 26px; width: auto; flex: none; display: block; }
-.app-brand__name { font: 700 16px "Sora", sans-serif; letter-spacing: -.01em; }
+.app-brand__name {
+  font: 500 11px "IBM Plex Mono", ui-monospace, monospace;
+  text-transform: uppercase; letter-spacing: .12em; color: var(--muted-2);
+  padding-left: 14px; border-left: 1px solid var(--border);
+}
 
 /* Pagy pagination */
 .pagy-wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
