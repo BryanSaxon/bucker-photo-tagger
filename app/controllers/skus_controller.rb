@@ -15,12 +15,4 @@ class SkusController < ApplicationController
     @sku = Sku.find(params[:id])
     @tagged_photos = @sku.photos.complete.recent.with_attached_image
   end
-
-  # Enqueue a pull of this SKU's image bytes from NewStart. Runs in the
-  # background so the request returns immediately.
-  def fetch_image
-    @sku = Sku.find(params[:id])
-    SkuImageFetchJob.perform_later(@sku.id)
-    redirect_to sku_path(@sku), notice: "Fetching image from NewStart…"
-  end
 end

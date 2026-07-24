@@ -2,11 +2,6 @@ class Sku < ApplicationRecord
   has_many :photo_skus, dependent: :destroy
   has_many :photos, through: :photo_skus
 
-  # The actual image bytes pulled from the NewStart /product_images file_contents
-  # endpoint (see Skus::ImageAttacher). A SKU can have several images on file, so
-  # this is a collection rather than a single attachment.
-  has_many_attached :images
-
   validates :product_code, presence: true, uniqueness: { case_sensitive: false }
 
   scope :ordered, -> { order(:short_description, :product_code) }
@@ -41,21 +36,10 @@ class Sku < ApplicationRecord
     attribute1.to_s.split(",").map(&:strip).reject(&:blank?)
   end
 
-  # Does the source catalog have image metadata on file for this SKU? This is
-  # true whenever the catalog reports a filename, independent of whether the
-  # bytes have been downloaded yet (see #images_downloaded?).
+  # Does the source catalog have an image on file for this SKU? (Metadata only —
+  # the API exposes no downloadable image bytes in this deployment.)
   def image?
     image_filename.present?
-  end
-
-  # Have the actual image bytes been pulled and attached yet?
-  def images_downloaded?
-    images.attached?
-  end
-
-  # A SKU has image metadata the catalog says exists, but no bytes attached yet.
-  def images_pending?
-    image? && !images_downloaded?
   end
 
   # Distinct category codes present in the catalog, for filter dropdowns.
