@@ -10,7 +10,12 @@ Rails.application.routes.draw do
   end
 
   # SKU catalog library + manual sync trigger.
-  resources :skus, only: %i[index show]
+  resources :skus, only: %i[index show] do
+    member do
+      # Pull this SKU's image bytes from NewStart and attach them.
+      post :fetch_image
+    end
+  end
   resources :sku_syncs, only: :create
 
   root "photos#index"

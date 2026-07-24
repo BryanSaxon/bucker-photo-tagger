@@ -69,12 +69,18 @@
   <div class="panel card-pad">
     <span class="eyebrow">Image</span>
     <% if @sku.image? %>
-      <div style="margin-top:12px; aspect-ratio:4/3; border-radius:12px; background:var(--gutter); border:1px solid var(--border); display:grid; place-items:center; text-align:center; padding:16px;">
-        <div>
-          <div style="font-size:30px;">🖼️</div>
-          <div class="mono" style="font-size:12px; color:var(--muted); margin-top:6px; word-break:break-all;"><%= @sku.image_filename %></div>
+      <% if @sku.images_downloaded? %>
+        <% @sku.images.each do |img| %>
+          <%= image_tag img, style: "margin-top:12px; width:100%; border-radius:12px; border:1px solid var(--border); display:block;" %>
+        <% end %>
+      <% else %>
+        <div style="margin-top:12px; aspect-ratio:4/3; border-radius:12px; background:var(--gutter); border:1px solid var(--border); display:grid; place-items:center; text-align:center; padding:16px;">
+          <div>
+            <div style="font-size:30px;">🖼️</div>
+            <div class="mono" style="font-size:12px; color:var(--muted); margin-top:6px; word-break:break-all;"><%= @sku.image_filename %></div>
+          </div>
         </div>
-      </div>
+      <% end %>
       <table class="data-table" style="margin-top:14px;">
         <tbody>
           <tr><td class="label" style="margin:0; border:none;">Filename</td><td class="mono" style="word-break:break-all;"><%= @sku.image_filename %></td></tr>
@@ -83,9 +89,15 @@
           <tr><td class="label" style="margin:0; border:none;">File ID</td><td class="mono" style="font-size:10px; word-break:break-all;"><%= @sku.image_file_id %></td></tr>
         </tbody>
       </table>
-      <p class="text-mono-sm" style="margin-top:12px; line-height:1.5;">
-        The API provides image metadata but no downloadable image bytes in this deployment, so the picture can’t be rendered yet.
-      </p>
+      <% if @sku.images_downloaded? %>
+        <%= button_to "Re-fetch image", fetch_image_sku_path(@sku), class: "btn btn--secondary btn--sm", style: "margin-top:12px; width:100%;" %>
+      <% else %>
+        <p class="text-mono-sm" style="margin-top:12px; line-height:1.5;">
+          Image bytes haven’t been pulled yet. Fetch them from the NewStart
+          <span class="mono">/product_images/&#123;image_name&#125;/file_contents</span> endpoint.
+        </p>
+        <%= button_to "Fetch image", fetch_image_sku_path(@sku), class: "btn btn--primary btn--sm", style: "margin-top:12px; width:100%;" %>
+      <% end %>
     <% else %>
       <div class="empty-state" style="padding:32px 12px;">
         <div class="empty-state__icon">🚫</div>
