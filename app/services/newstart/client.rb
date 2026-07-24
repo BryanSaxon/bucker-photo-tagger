@@ -1,5 +1,6 @@
 require "net/http"
 require "json"
+require "erb"
 
 module Newstart
   # Thin read-only client for the NewStart SKU/product catalog API.
@@ -44,7 +45,55 @@ module Newstart
       get("/product_images").fetch("images", [])
     end
 
+    # --- Community-rooted object graph --------------------------------------
+    # Every community-scoped endpoint takes the community's project_code in the
+    # path. Responses wrap their array under a plural key; we unwrap here.
+
+    # All communities (the root of the graph). Each carries project_code, name
+    # and product_library_code.
+    def communities
+      get("/communities").fetch("communities", [])
+    end
+
+    # Models for a community. Uses the models2 variant, which is a superset of
+    # /models: more rows (incl. discontinued) plus square_feet, bed/bath/garage
+    # counts and sellable/discontinued flags. Each model embeds the community's
+    # room dictionary inline under "rooms".
+    def community_models(project_code)
+      get("/communities/#{seg(project_code)}/models2").fetch("models", [])
+    end
+
+    # Lots for a community (summary rows: address, status, type, prices).
+    def community_lots(project_code)
+      get("/communities/#{seg(project_code)}/lots").fetch("lots", [])
+    end
+
+    # A single lot with its configured selections. Returns the lot hash, which
+    # embeds available_rooms, selected_drawn_options and selected_design_options,
+    # or nil if the lot is not found.
+    def community_lot(project_code, lot_number)
+      get("/communities/#{seg(project_code)}/lots/#{seg(lot_number)}").fetch("lot", []).first
+    end
+
+    # Priced options for a community (the "Drawn Options" set), joined to a model
+    # by model + elev and to a product by product_code.
+    def community_options(project_code)
+      get("/communities/#{seg(project_code)}/options").fetch("options", [])
+    end
+
+    # The configurator step / category / subcategory display tree for a community
+    # (display names + sort order only — no category codes are exposed here).
+    def community_steps(project_code)
+      get("/communities/#{seg(project_code)}/steps").fetch("steps", [])
+    end
+
     private
+
+    # URL-encode a single path segment (project_code and lot are strings that can
+    # in principle contain unsafe characters).
+    def seg(value)
+      ERB::Util.url_encode(value.to_s)
+    end
 
     def get(path)
       ensure_configured!

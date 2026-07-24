@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_24_013838) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_24_020828) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -46,18 +46,112 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_013838) do
     t.string "code"
     t.datetime "created_at", null: false
     t.string "name", null: false
+    t.string "product_library_code"
     t.datetime "updated_at", null: false
-    t.index ["code"], name: "index_communities_on_code"
+    t.index ["code"], name: "index_communities_on_code", unique: true
   end
 
   create_table "floorplans", force: :cascade do |t|
+    t.decimal "base_model_price", precision: 12, scale: 2
+    t.text "base_model_rooms"
+    t.integer "bath_count"
+    t.integer "bed_count"
     t.string "code"
     t.bigint "community_id", null: false
     t.datetime "created_at", null: false
+    t.boolean "discontinued", default: false, null: false
     t.string "elevation"
+    t.integer "garage_count"
+    t.integer "half_bath_count"
+    t.string "model_description"
     t.string "name"
+    t.boolean "sellable", default: true, null: false
+    t.integer "square_feet"
     t.datetime "updated_at", null: false
+    t.index ["community_id", "name", "elevation"], name: "index_floorplans_on_community_model_elevation", unique: true
     t.index ["community_id"], name: "index_floorplans_on_community_id"
+  end
+
+  create_table "lot_selections", force: :cascade do |t|
+    t.string "attribute1"
+    t.string "attribute1_desc"
+    t.string "attribute2"
+    t.string "attribute2_desc"
+    t.string "category_code"
+    t.string "category_name"
+    t.datetime "created_at", null: false
+    t.decimal "gross_sale", precision: 12, scale: 2
+    t.string "kind"
+    t.bigint "lot_id", null: false
+    t.string "model_description"
+    t.string "product_code"
+    t.string "product_description"
+    t.decimal "quantity", precision: 10, scale: 2
+    t.string "room_code"
+    t.string "room_description"
+    t.bigint "room_id"
+    t.string "short_description"
+    t.bigint "sku_id"
+    t.string "subcategory_code"
+    t.string "subcategory_name"
+    t.decimal "unit_price", precision: 12, scale: 2
+    t.string "uofm"
+    t.datetime "updated_at", null: false
+    t.index ["lot_id"], name: "index_lot_selections_on_lot_id"
+    t.index ["product_code"], name: "index_lot_selections_on_product_code"
+    t.index ["room_id"], name: "index_lot_selections_on_room_id"
+    t.index ["sku_id"], name: "index_lot_selections_on_sku_id"
+  end
+
+  create_table "lots", force: :cascade do |t|
+    t.decimal "base_model_price", precision: 12, scale: 2
+    t.bigint "community_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "floorplan_id"
+    t.decimal "gross_sale", precision: 12, scale: 2
+    t.string "lot", null: false
+    t.string "lot_address"
+    t.decimal "lot_premium", precision: 12, scale: 2
+    t.decimal "lot_price", precision: 12, scale: 2
+    t.string "lot_status"
+    t.string "lot_type"
+    t.string "model_description"
+    t.decimal "options_total", precision: 12, scale: 2
+    t.datetime "updated_at", null: false
+    t.index ["community_id", "lot"], name: "index_lots_on_community_id_and_lot", unique: true
+    t.index ["community_id"], name: "index_lots_on_community_id"
+    t.index ["floorplan_id"], name: "index_lots_on_floorplan_id"
+  end
+
+  create_table "options", force: :cascade do |t|
+    t.string "add_floor_area"
+    t.string "category"
+    t.string "category_code"
+    t.bigint "community_id", null: false
+    t.datetime "created_at", null: false
+    t.string "description"
+    t.string "elev"
+    t.bigint "floorplan_id"
+    t.decimal "gross_sale", precision: 12, scale: 2
+    t.string "model"
+    t.string "model_description"
+    t.string "option_type"
+    t.string "product_code"
+    t.decimal "qty", precision: 10, scale: 2
+    t.text "room_replacement_add"
+    t.text "room_replacement_remove"
+    t.string "short_description"
+    t.bigint "sku_id"
+    t.string "source_modified_at"
+    t.string "subcategory"
+    t.string "subcategory_code"
+    t.decimal "unit_price", precision: 12, scale: 2
+    t.string "uofm"
+    t.datetime "updated_at", null: false
+    t.index ["community_id"], name: "index_options_on_community_id"
+    t.index ["floorplan_id"], name: "index_options_on_floorplan_id"
+    t.index ["product_code"], name: "index_options_on_product_code"
+    t.index ["sku_id"], name: "index_options_on_sku_id"
   end
 
   create_table "photo_skus", force: :cascade do |t|
@@ -86,6 +180,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_013838) do
     t.index ["name"], name: "index_photos_on_name"
     t.index ["processed_by_id"], name: "index_photos_on_processed_by_id"
     t.index ["status"], name: "index_photos_on_status"
+  end
+
+  create_table "rooms", force: :cascade do |t|
+    t.bigint "community_id", null: false
+    t.datetime "created_at", null: false
+    t.string "room_code", null: false
+    t.string "room_desc"
+    t.datetime "updated_at", null: false
+    t.index ["community_id", "room_code"], name: "index_rooms_on_community_id_and_room_code", unique: true
+    t.index ["community_id"], name: "index_rooms_on_community_id"
   end
 
   create_table "sessions", force: :cascade do |t|
@@ -148,6 +252,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_013838) do
     t.index ["subcategory_code"], name: "index_skus_on_subcategory_code"
   end
 
+  create_table "step_categories", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name"
+    t.integer "sortorder"
+    t.bigint "step_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["step_id"], name: "index_step_categories_on_step_id"
+  end
+
+  create_table "step_subcategories", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name"
+    t.integer "sortorder"
+    t.bigint "step_category_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["step_category_id"], name: "index_step_subcategories_on_step_category_id"
+  end
+
+  create_table "steps", force: :cascade do |t|
+    t.text "area_associations"
+    t.bigint "community_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "sortorder"
+    t.string "step", null: false
+    t.datetime "updated_at", null: false
+    t.index ["community_id", "step"], name: "index_steps_on_community_id_and_step", unique: true
+    t.index ["community_id"], name: "index_steps_on_community_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "email_address", null: false
@@ -159,11 +292,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_013838) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "floorplans", "communities"
+  add_foreign_key "lot_selections", "lots", on_delete: :cascade
+  add_foreign_key "lot_selections", "rooms", on_delete: :nullify
+  add_foreign_key "lot_selections", "skus", on_delete: :nullify
+  add_foreign_key "lots", "communities", on_delete: :cascade
+  add_foreign_key "lots", "floorplans", on_delete: :nullify
+  add_foreign_key "options", "communities", on_delete: :cascade
+  add_foreign_key "options", "floorplans", on_delete: :nullify
+  add_foreign_key "options", "skus", on_delete: :nullify
   add_foreign_key "photo_skus", "photos"
   add_foreign_key "photo_skus", "skus"
   add_foreign_key "photos", "communities"
   add_foreign_key "photos", "floorplans"
   add_foreign_key "photos", "users", column: "processed_by_id"
+  add_foreign_key "rooms", "communities", on_delete: :cascade
   add_foreign_key "sessions", "users"
   add_foreign_key "sku_images", "skus", on_delete: :cascade
+  add_foreign_key "step_categories", "steps", on_delete: :cascade
+  add_foreign_key "step_subcategories", "step_categories", on_delete: :cascade
+  add_foreign_key "steps", "communities", on_delete: :cascade
 end

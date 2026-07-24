@@ -6,8 +6,8 @@ class SkuSyncJobTest < ActiveJob::TestCase
     received = nil
 
     # Swap the service for a stub so the job test never touches the real API.
-    original = Skus::SyncService.method(:call)
-    Skus::SyncService.define_singleton_method(:call) do |record|
+    original = Catalog::SyncService.method(:call)
+    Catalog::SyncService.define_singleton_method(:call) do |record, **|
       received = record
       record.mark_completed!(0)
     end
@@ -15,7 +15,7 @@ class SkuSyncJobTest < ActiveJob::TestCase
     begin
       SkuSyncJob.perform_now(sync.id)
     ensure
-      Skus::SyncService.define_singleton_method(:call, original)
+      Catalog::SyncService.define_singleton_method(:call, original)
     end
 
     assert_equal sync.id, received.id

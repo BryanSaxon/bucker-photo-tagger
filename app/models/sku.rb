@@ -7,6 +7,11 @@ class Sku < ApplicationRecord
   # /product_images by Skus::SyncService, keyed by product_code.
   has_many :sku_images, dependent: :destroy
 
+  # Where this product appears in the community catalog (best-effort links from
+  # the community-scoped endpoints, resolved by product_code).
+  has_many :options, dependent: :nullify
+  has_many :lot_selections, dependent: :nullify
+
   validates :product_code, presence: true, uniqueness: { case_sensitive: false }
 
   scope :ordered, -> { order(:short_description, :product_code) }
