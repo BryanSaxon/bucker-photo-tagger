@@ -42,6 +42,9 @@ gem "thruster", require: false
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
 gem "image_processing", "~> 1.2"
 
+# S3-compatible client for Active Storage on Cloudflare R2 (production).
+gem "aws-sdk-s3", require: false
+
 # Extract images from uploaded .zip archives (batch upload)
 gem "rubyzip", "~> 3.0", require: "zip"
 

@@ -73,20 +73,17 @@ test:
 # for a full overview on how database connection configuration can be specified.
 #
 production:
+  # One managed Postgres on Render (DATABASE_URL). The Solid adapters share it;
+  # their tables are created from the *_schema.rb files at deploy time.
   primary: &primary_production
     <<: *default
-    database: photo_tagger_production
-    username: photo_tagger
-    password: <%= ENV["PHOTO_TAGGER_DATABASE_PASSWORD"] %>
+    url: <%= ENV["DATABASE_URL"] %>
   cache:
     <<: *primary_production
-    database: photo_tagger_production_cache
     migrations_paths: db/cache_migrate
   queue:
     <<: *primary_production
-    database: photo_tagger_production_queue
     migrations_paths: db/queue_migrate
   cable:
     <<: *primary_production
-    database: photo_tagger_production_cable
     migrations_paths: db/cable_migrate

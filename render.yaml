@@ -1,0 +1,49 @@
+# Render blueprint: web + worker + Postgres.
+# The only secret to set manually in Render is RAILS_MASTER_KEY (sync: false).
+# Everything else (R2, SendGrid, secret_key_base) lives in Rails credentials.
+services:
+  - type: web
+    name: photo-tagger
+    runtime: ruby
+    plan: starter
+    buildCommand: "./bin/render-build.sh"
+    startCommand: "bundle exec puma -C config/puma.rb"
+    healthCheckPath: /up
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_SERVE_STATIC_FILES
+        value: "true"
+      - key: RAILS_LOG_TO_STDOUT
+        value: "true"
+      - key: SOLID_QUEUE_IN_PUMA
+        value: "false"
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: photo-tagger-db
+          property: connectionString
+
+  - type: worker
+    name: photo-tagger-worker
+    runtime: ruby
+    plan: starter
+    buildCommand: "./bin/render-build.sh"
+    startCommand: "bundle exec rails solid_queue:start"
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_LOG_TO_STDOUT
+        value: "true"
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: photo-tagger-db
+          property: connectionString
+
+databases:
+  - name: photo-tagger-db
+    databaseName: photo_tagger_production
+    plan: basic-256mb
