@@ -38,7 +38,7 @@
       <%= link_to photo_path(photo), class: "photo-card" do %>
         <span class="photo-card__thumb">
           <% if photo.image.attached? %>
-            <%= image_tag photo.image, loading: "lazy", alt: photo.name %>
+            <%= image_tag photo.image.variant(:thumb), loading: "lazy", alt: photo.name %>
           <% end %>
         </span>
         <div class="photo-card__body">
