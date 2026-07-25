@@ -5,7 +5,9 @@ services:
   - type: web
     name: photo-tagger
     runtime: ruby
-    plan: starter
+    # Uploads buffer photo bytes on their way to R2; standard gives headroom so
+    # large batches/zips don't approach the memory ceiling.
+    plan: standard
     buildCommand: "./bin/render-build.sh"
     # DB setup runs once here (web only) so it never races with the worker.
     preDeployCommand: "./bin/render-migrate.sh"

@@ -58,9 +58,12 @@ module Photos
       end
     end
 
+    # Stream the archive from disk and spill each image to its own tempfile
+    # rather than reading whole entries into memory — keeps peak memory ~one
+    # streaming buffer regardless of how many (or how large) the photos are.
     def expand_zip(file, context, created, errors)
       count = 0
-      Zip::File.open_buffer(file.tempfile) do |zip|
+      Zip::File.open(file.tempfile.path) do |zip|
         zip.each do |entry|
           next unless entry.file? && image?(entry.name) && !hidden?(entry.name)
 
@@ -70,14 +73,22 @@ module Photos
             break
           end
 
-          io = StringIO.new(entry.get_input_stream.read)
-          photo = build(io: io, filename: File.basename(entry.name),
-            content_type: content_type_for(entry.name), context: context)
-          record(photo, entry.name, created, errors)
+          extract_entry(entry, context, created, errors)
         end
       end
     rescue StandardError => e
       errors << "#{file.original_filename}: could not read archive (#{e.class})."
+    end
+
+    def extract_entry(entry, context, created, errors)
+      tmp = Tempfile.new([ "zip-entry", File.extname(entry.name) ], binmode: true)
+      entry.get_input_stream { |input| IO.copy_stream(input, tmp) }
+      tmp.rewind
+      photo = build(io: tmp, filename: File.basename(entry.name),
+        content_type: content_type_for(entry.name), context: context)
+      record(photo, entry.name, created, errors)
+    ensure
+      tmp&.close!
     end
 
     def build(io:, filename:, content_type:, context:)
