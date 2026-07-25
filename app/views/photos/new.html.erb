@@ -32,7 +32,7 @@
     <fieldset style="border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:16px;">
       <legend class="text-mono-sm" style="padding:0 6px;">Location (optional)</legend>
       <p class="text-mono-sm" style="margin:0 0 10px; color:var(--muted);">Pick any of these — choosing one narrows the rest. Stored with each photo to help tag products later.</p>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div class="form-grid-2">
         <div class="field" style="margin:0;">
           <label class="label" for="photo_community_id">Community</label>
           <%= select_tag "photo[community_id]", options_from_collection_for_select(@communities, :id, :name),

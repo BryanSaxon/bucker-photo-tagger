@@ -10,6 +10,14 @@ class PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "an already-signed-in user is redirected away from password reset" do
+    sign_in_as(users(:one))
+    get new_password_path
+    assert_redirected_to root_path
+    get edit_password_path(reset_token)
+    assert_redirected_to root_path
+  end
+
   test "create enqueues a reset email" do
     post passwords_path, params: { email_address: @user.email_address }
     assert_enqueued_email_with PasswordsMailer, :reset, args: [ @user ]

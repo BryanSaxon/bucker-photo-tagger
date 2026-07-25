@@ -21,6 +21,12 @@ module Authentication
       resume_session || request_authentication
     end
 
+    # For pages that only make sense when signed OUT (sign-in, password reset):
+    # bounce already-authenticated users back to the app.
+    def redirect_if_authenticated
+      redirect_to root_path, alert: "You’re already signed in." if authenticated?
+    end
+
     def resume_session
       Current.session ||= find_session_by_cookie
     end
