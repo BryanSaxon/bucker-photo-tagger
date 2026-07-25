@@ -129,6 +129,21 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
     assert Photo.all.all? { |p| p.community_id == @community.id && p.floorplan_id == @floorplan.id && p.room_id == room.id }
   end
 
+  test "uploading via direct-upload signed_ids creates photos" do
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: file_fixture("sample.png").open, filename: "direct.png", content_type: "image/png"
+    )
+    sign_in_as(@user)
+
+    assert_difference -> { Photo.count }, 1 do
+      post photos_path, params: { photo: { signed_ids: [ blob.signed_id ], community_id: @community.id } }
+    end
+    assert_redirected_to photos_path
+    created = Photo.order(:created_at).last
+    assert_equal blob, created.image.blob
+    assert_equal @community.id, created.community_id
+  end
+
   test "saving selections persists the chosen room" do
     room = @community.rooms.create!(room_code: "KIT", room_desc: "Kitchen")
     photo = create_photo(name: "Kitchen")

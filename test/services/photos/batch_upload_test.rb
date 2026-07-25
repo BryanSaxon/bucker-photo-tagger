@@ -96,6 +96,44 @@ module Photos
       assert_match(/not in the selected community/, result.errors.to_sentence)
     end
 
+    def blob(filename = "direct.png")
+      ActiveStorage::Blob.create_and_upload!(
+        io: file_fixture("sample.png").open, filename: filename, content_type: "image/png"
+      )
+    end
+
+    test "attaches images uploaded via signed_ids without re-uploading bytes" do
+      b = blob("kitchen.png")
+      result = BatchUpload.call(signed_ids: [ b.signed_id ])
+
+      assert_equal 1, result.count
+      photo = result.created.first
+      assert photo.image.attached?
+      assert_equal b, photo.image.blob
+      assert_equal "kitchen", photo.name
+    end
+
+    test "mixes direct-uploaded images (signed_ids) and a zip in one submit" do
+      zip = zip_upload("z/a.png" => sample_path)
+      result = BatchUpload.call(signed_ids: [ blob.signed_id ], files: [ zip ])
+
+      assert_equal 2, result.count
+    end
+
+    test "stamps context onto direct-uploaded photos too" do
+      community = Community.create!(code: "1682", name: "Bradbury")
+      result = BatchUpload.call(signed_ids: [ blob.signed_id ], community_id: community.id)
+
+      assert_equal community.id, result.created.first.community_id
+    end
+
+    test "an invalid signed_id is reported, not fatal" do
+      result = BatchUpload.call(signed_ids: [ "garbage" ])
+      assert_equal 0, result.count
+      assert_not result.success?
+      assert_match(/could not be attached/, result.errors.to_sentence)
+    end
+
     test "reports unsupported files and empty input" do
       bad = Rack::Test::UploadedFile.new(file_fixture("sample.png"), "text/plain", original_filename: "notes.txt")
       result = BatchUpload.call(files: [ bad ])

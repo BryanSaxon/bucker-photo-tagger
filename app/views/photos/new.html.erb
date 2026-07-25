@@ -14,6 +14,8 @@
 <div class="panel card-pad">
   <%= form_with model: @photo, url: photos_path, method: :post, html: {
         multipart: true, data: { controller: "upload catalog-select",
+          action: "submit->upload#submit",
+          upload_direct_upload_url_value: rails_direct_uploads_url,
           catalog_select_plans_value: plans_json.to_json,
           catalog_select_rooms_value: rooms_json.to_json } } do |f| %>
 

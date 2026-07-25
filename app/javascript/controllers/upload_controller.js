@@ -1,9 +1,12 @@
 import { Controller } from "@hotwired/stimulus"
+import { DirectUpload } from "@rails/activestorage"
 
-// Handles the multi-photo upload form: drag-and-drop onto the dropzone, a live
-// thumbnail preview of the chosen files, and a selected-count label.
+// Multi-photo upload form: drag-and-drop, a thumbnail preview, and — on submit —
+// direct-to-storage uploads for images (they never pass through the web server),
+// while any .zip archives still submit normally for server-side extraction.
 export default class extends Controller {
   static targets = ["input", "dropzone", "preview", "count", "submit"]
+  static values = { directUploadUrl: String }
 
   dragover(event) {
     event.preventDefault()
@@ -21,6 +24,66 @@ export default class extends Controller {
     this.resetDropzone()
     this.inputTarget.files = event.dataTransfer.files
     this.preview()
+  }
+
+  // Intercept submit: upload the image files directly to storage, replace them
+  // with their signed ids, and let the form submit (with any zips) afterwards.
+  async submit(event) {
+    const files = Array.from(this.inputTarget.files || [])
+    const images = files.filter((f) => f.type.startsWith("image/"))
+    if (images.length === 0) return // zips-only or nothing — normal submit
+
+    event.preventDefault()
+    const others = files.filter((f) => !f.type.startsWith("image/"))
+    this.setBusy(0, images.length)
+
+    try {
+      let done = 0
+      const signedIds = await Promise.all(
+        images.map((file) =>
+          this.uploadFile(file).then((id) => {
+            this.setBusy(++done, images.length)
+            return id
+          })
+        )
+      )
+      signedIds.forEach((id) => this.addSignedId(id))
+
+      // Leave only the non-image files (zips) in the input, then submit for real.
+      const dt = new DataTransfer()
+      others.forEach((f) => dt.items.add(f))
+      this.inputTarget.files = dt.files
+      this.element.requestSubmit()
+    } catch (e) {
+      // Direct upload failed (e.g. storage CORS not yet configured). Fall back
+      // to a normal multipart submit — slower, but uploads still work. The files
+      // are still in the input and no signed_ids were added, so .submit() (which
+      // doesn't re-fire this handler) sends the bytes through the server.
+      this.setBusy(null)
+      this.element.submit()
+    }
+  }
+
+  uploadFile(file) {
+    return new Promise((resolve, reject) => {
+      new DirectUpload(file, this.directUploadUrlValue).create((error, blob) =>
+        error ? reject(error) : resolve(blob.signed_id)
+      )
+    })
+  }
+
+  addSignedId(signedId) {
+    const input = document.createElement("input")
+    input.type = "hidden"
+    input.name = "photo[signed_ids][]"
+    input.value = signedId
+    this.element.appendChild(input)
+  }
+
+  setBusy(done, total) {
+    if (this.hasSubmitTarget) this.submitTarget.disabled = done !== null && done < total
+    if (!this.hasCountTarget) return
+    this.countTarget.textContent = done === null ? "" : `Uploading ${done}/${total}…`
   }
 
   preview() {
