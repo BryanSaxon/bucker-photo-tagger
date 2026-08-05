@@ -3,7 +3,7 @@
 <div style="margin-bottom:22px;">
   <span class="eyebrow">Team</span>
   <h1 class="page-title" style="margin-top:6px;">Users</h1>
-  <p class="muted" style="margin-top:6px; font-size:14px;">Invite teammates and manage their access. Invited users get an email to set their password.</p>
+  <p class="muted" style="margin-top:6px; font-size:14px;">Invite teammates and manage their access. Invited users get an email to set their password. If the email is blocked or lands in spam, use <strong>Copy invite link</strong> to send the same link another way.</p>
 </div>
 
 <div class="panel card-pad" style="margin-bottom:22px;">
@@ -61,7 +61,13 @@
             </td>
             <td style="text-align:right; white-space:nowrap;">
               <% if user.pending_invite? && user.active? %>
-                <%= button_to "Resend invite", resend_invite_user_path(user), method: :post, class: "btn btn--ghost btn--sm" %>
+                <%= button_to "Resend invite", resend_invite_user_path(user), method: :post, class: "btn btn--ghost btn--sm", form: { style: "display:inline;" } %>
+                <% if (invite_link = @invite_links[user.id]) %>
+                  <span data-controller="clipboard" data-clipboard-text-value="<%= invite_link %>" style="display:inline;">
+                    <button type="button" class="btn btn--ghost btn--sm" data-action="clipboard#copy"
+                            title="Copy the set-password link to send manually if the email doesn’t arrive">Copy invite link</button>
+                  </span>
+                <% end %>
               <% end %>
               <% unless user == Current.user %>
                 <% if user.deactivated? %>
