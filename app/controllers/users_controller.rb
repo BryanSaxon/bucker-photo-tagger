@@ -5,6 +5,11 @@ class UsersController < ApplicationController
   def index
     @users = User.order(:email_address)
     @user = User.new
+    # Fallback for when the invite email is blocked or lands in spam: a copyable
+    # link (same set-password page the email opens) the admin can send manually.
+    @invite_links = @users.each_with_object({}) do |user, links|
+      links[user.id] = invite_link_for(user) if user.pending_invite? && user.active?
+    end
   end
 
   # Invite a new user: create them and email a set-password link.
@@ -63,6 +68,13 @@ class UsersController < ApplicationController
   private
     def set_user
       @user = User.find(params[:id])
+    end
+
+    # Absolute set-password URL for a pending invite — identical to the link the
+    # invite email carries. Uses the same signed, self-expiring :invitation token,
+    # so it auto-invalidates once the user sets a password.
+    def invite_link_for(user)
+      edit_password_url(user.generate_token_for(:invitation))
     end
 
     def user_params

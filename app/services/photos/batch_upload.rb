@@ -21,21 +21,27 @@ module Photos
 
     def self.call(...) = new(...).call
 
-    def initialize(files:, community_id: nil, floorplan_id: nil, room_id: nil)
+    def initialize(files: nil, signed_ids: nil, community_id: nil, floorplan_id: nil, room_id: nil)
       @files = Array(files).reject(&:blank?)
+      @signed_ids = Array(signed_ids).reject(&:blank?)
       @community_id = community_id.presence
       @floorplan_id = floorplan_id.presence
       @room_id = room_id.presence
     end
 
     def call
-      return Result.new(created: [], errors: [ "Please choose at least one file to upload." ]) if @files.empty?
+      if @files.empty? && @signed_ids.empty?
+        return Result.new(created: [], errors: [ "Please choose at least one file to upload." ])
+      end
 
       context = resolve_context
       return context if context.is_a?(Result)
 
       created = []
       errors = []
+      # Images uploaded straight to storage arrive as signed blob ids; zips (and
+      # any non-direct-upload files) still stream through here.
+      @signed_ids.each { |signed_id| ingest_signed_id(signed_id, context, created, errors) }
       @files.each { |file| ingest(file, context, created, errors) }
 
       if created.empty? && errors.empty?
@@ -45,6 +51,21 @@ module Photos
     end
 
     private
+
+    # Attach an already-uploaded blob (no bytes pass through the server).
+    def ingest_signed_id(signed_id, context, created, errors)
+      blob = ActiveStorage::Blob.find_signed!(signed_id)
+      photo = Photo.new(
+        name: File.basename(blob.filename.to_s, ".*").presence || "photo",
+        community_id: context[:community_id],
+        floorplan_id: context[:floorplan_id],
+        room_id: context[:room_id]
+      )
+      photo.image.attach(blob)
+      record(photo, blob.filename.to_s, created, errors)
+    rescue StandardError => e
+      errors << "An uploaded file could not be attached (#{e.class})."
+    end
 
     def ingest(file, context, created, errors)
       if zip?(file)
@@ -58,9 +79,12 @@ module Photos
       end
     end
 
+    # Stream the archive from disk and spill each image to its own tempfile
+    # rather than reading whole entries into memory — keeps peak memory ~one
+    # streaming buffer regardless of how many (or how large) the photos are.
     def expand_zip(file, context, created, errors)
       count = 0
-      Zip::File.open_buffer(file.tempfile) do |zip|
+      Zip::File.open(file.tempfile.path) do |zip|
         zip.each do |entry|
           next unless entry.file? && image?(entry.name) && !hidden?(entry.name)
 
@@ -70,14 +94,22 @@ module Photos
             break
           end
 
-          io = StringIO.new(entry.get_input_stream.read)
-          photo = build(io: io, filename: File.basename(entry.name),
-            content_type: content_type_for(entry.name), context: context)
-          record(photo, entry.name, created, errors)
+          extract_entry(entry, context, created, errors)
         end
       end
     rescue StandardError => e
       errors << "#{file.original_filename}: could not read archive (#{e.class})."
+    end
+
+    def extract_entry(entry, context, created, errors)
+      tmp = Tempfile.new([ "zip-entry", File.extname(entry.name) ], binmode: true)
+      entry.get_input_stream { |input| IO.copy_stream(input, tmp) }
+      tmp.rewind
+      photo = build(io: tmp, filename: File.basename(entry.name),
+        content_type: content_type_for(entry.name), context: context)
+      record(photo, entry.name, created, errors)
+    ensure
+      tmp&.close!
     end
 
     def build(io:, filename:, content_type:, context:)

@@ -93,6 +93,37 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_select "div", /deactivated/i
   end
 
+  test "admin sees a copyable invite link for pending users only" do
+    sign_in_as(@admin)
+    User.invite!(email_address: "pending@example.com")
+
+    get users_path
+    assert_response :success
+
+    # Exactly one pending user (the fixtures are both already activated), so
+    # exactly one clipboard control, pointing at the set-password page.
+    assert_select "[data-controller='clipboard']", 1
+    assert_select "[data-controller='clipboard'][data-clipboard-text-value*='/passwords/']"
+  end
+
+  test "the copyable invite link uses a working invitation token" do
+    sign_in_as(@admin)
+    pending = User.invite!(email_address: "pending@example.com")
+
+    get users_path
+    link = css_select("[data-controller='clipboard']").first["data-clipboard-text-value"]
+    token = link[%r{/passwords/([^/]+)/edit}, 1]
+
+    # A fresh, unauthenticated visitor follows the link and sets a password.
+    reset!
+    put password_path(token), params: { password: "newpassword", password_confirmation: "newpassword" }
+    assert_redirected_to new_session_path
+
+    pending.reload
+    assert_not pending.pending_invite?, "setting a password should clear the pending invite"
+    assert pending.authenticate("newpassword"), "the recipient's chosen password should now work"
+  end
+
   test "resending an invite only works for pending users" do
     sign_in_as(@admin)
     pending = User.invite!(email_address: "pending@example.com")

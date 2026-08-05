@@ -26,6 +26,7 @@ class PhotosController < ApplicationController
   def create
     result = Photos::BatchUpload.call(
       files: params.dig(:photo, :images),
+      signed_ids: params.dig(:photo, :signed_ids),
       community_id: upload_params[:community_id],
       floorplan_id: upload_params[:floorplan_id],
       room_id: upload_params[:room_id]

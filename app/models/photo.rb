@@ -14,7 +14,12 @@ class Photo < ApplicationRecord
   has_many :photo_skus, dependent: :destroy
   has_many :skus, through: :photo_skus
 
-  has_one_attached :image
+  # A resized :thumb variant for grid thumbnails — full-size images are far too
+  # heavy to list. preprocessed so new uploads generate it up front (existing
+  # photos generate it on first view, then it's cached).
+  has_one_attached :image do |attachable|
+    attachable.variant :thumb, resize_to_limit: [ 600, 600 ], preprocessed: true
+  end
 
   accepts_nested_attributes_for :photo_skus, allow_destroy: true
 
