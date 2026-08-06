@@ -13,6 +13,10 @@ class Photo < ApplicationRecord
   # `room` above stays as an optional, more precise catalog refinement.
   belongs_to :room_type, optional: true
   belongs_to :processed_by, class_name: "User", optional: true
+  # Set only when someone deliberately keeps a second copy of an image already
+  # in the library; the default is to fold a re-upload into the original.
+  belongs_to :duplicate_of, class_name: "Photo", optional: true
+  has_many :duplicates, class_name: "Photo", foreign_key: :duplicate_of_id, dependent: :nullify
 
   has_many :photo_skus, dependent: :destroy
   has_many :skus, through: :photo_skus

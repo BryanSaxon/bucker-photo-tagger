@@ -7,9 +7,14 @@ module Photos
   # community, and an inconsistent combination is rejected up front so no photos
   # are created.
   class BatchUpload
-    Result = Struct.new(:created, :errors, keyword_init: true) do
+    Result = Struct.new(:created, :updated, :errors, keyword_init: true) do
+      def initialize(created: [], updated: [], errors: [])
+        super
+      end
+
       def success? = errors.empty?
       def count = created.size
+      def updated_count = updated.size
     end
 
     IMAGE_EXTENSIONS = %w[.jpg .jpeg .png .webp .gif].freeze
@@ -28,13 +33,14 @@ module Photos
     def self.call(...) = new(...).call
 
     def initialize(files: nil, signed_ids: nil, community_id: nil, floorplan_id: nil,
-      room_id: nil, room_type_id: nil)
+      room_id: nil, room_type_id: nil, update_existing: true)
       @files = Array(files).reject(&:blank?)
       @signed_ids = Array(signed_ids).reject(&:blank?)
       @community_id = community_id.presence
       @floorplan_id = floorplan_id.presence
       @room_id = room_id.presence
       @room_type_id = room_type_id.presence
+      @update_existing = update_existing
     end
 
     def call
@@ -45,17 +51,20 @@ module Photos
       context = resolve_context
       return context if context.is_a?(Result)
 
+      @context_cache = context
+
       created = []
       errors = []
+      @updated = []
       # Images uploaded straight to storage arrive as signed blob ids; zips (and
       # any non-direct-upload files) still stream through here.
       @signed_ids.each { |signed_id| ingest_signed_id(signed_id, context, created, errors) }
       @files.each { |file| ingest(file, context, created, errors) }
 
-      if created.empty? && errors.empty?
+      if created.empty? && @updated.empty? && errors.empty?
         errors << "No images were found in the uploaded file(s)."
       end
-      Result.new(created: created, errors: errors)
+      Result.new(created: created, updated: @updated, errors: errors)
     end
 
     private
@@ -166,12 +175,41 @@ module Photos
       photo
     end
 
+    # A re-upload of a photo already in the library is not a mistake to warn
+    # about: designers re-upload from phone albums that are organised by
+    # community and floorplan precisely so that placement comes with them. So
+    # carry the new placement onto the existing photo rather than duplicating
+    # it, and never touch its tags, pins or processed state.
     def record(photo, label, created, errors)
+      existing = @update_existing ? DuplicateFinder.for_blob(photo.image.blob) : nil
+
+      if existing
+        apply_placement(existing)
+        # Only a direct upload has persisted its blob already; one attached to
+        # an unsaved record has no id yet and nothing to purge.
+        photo.image.blob.purge_later if photo.image.blob&.persisted?
+        @updated << existing
+        return
+      end
+
       if photo.save
         created << photo
       else
         errors << "#{label}: #{photo.errors.full_messages.to_sentence}"
       end
+    end
+
+    # Only ever fills in or improves placement. A re-upload with nothing chosen
+    # on the form must not blank out what the photo already had.
+    def apply_placement(photo)
+      changes = {
+        community_id: @context_cache[:community_id],
+        floorplan_id: @context_cache[:floorplan_id],
+        room_id: @context_cache[:room_id],
+        room_type_id: @context_cache[:room_type_id]
+      }.compact
+
+      photo.update(changes) if changes.any?
     end
 
     # Normalize the trio: derive community from a lone floorplan/room and reject

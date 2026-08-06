@@ -64,6 +64,21 @@
           </div>
         <% end %>
       </div>
+
+      <%# Default on: re-uploading from a phone album that's already organised
+          by community and plan is how designers add placement to photos that
+          are already here. Tags and pins are never touched. %>
+      <label class="text-mono-sm" style="display:flex; gap:8px; align-items:flex-start; margin-top:14px; cursor:pointer;">
+        <%= hidden_field_tag "photo[update_existing]", "0" %>
+        <%= check_box_tag "photo[update_existing]", "1", true %>
+        <span>
+          Update photos I’ve already uploaded<br>
+          <span style="color:var(--muted);">
+            If a photo is already in the library, apply this location to it instead of adding a second copy.
+            Existing tags and pins are kept.
+          </span>
+        </span>
+      </label>
     </fieldset>
 
     <div data-upload-target="preview" class="photo-grid" style="margin-bottom:16px;"></div>

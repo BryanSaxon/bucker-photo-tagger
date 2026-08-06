@@ -5,9 +5,23 @@ module Photos
   class BatchUploadTest < ActiveSupport::TestCase
     include ActiveJob::TestHelper
 
-    # Always reads the real sample.png fixture; `name` only sets the filename.
     def image_upload(name = "sample.png", type = "image/png")
-      Rack::Test::UploadedFile.new(file_fixture("sample.png"), type, original_filename: name)
+      Rack::Test::UploadedFile.new(image_path_for(name), type, original_filename: name)
+    end
+
+    # Image bytes are derived from the filename, so two uploads sharing a name
+    # are byte-identical (what the re-upload tests need) while two with
+    # different names are not (what the batch tests need). Uploading the one
+    # fixture repeatedly would now read as a re-upload of the same photo.
+    def image_path_for(name)
+      digest = Digest::MD5.hexdigest(name)
+      path = Rails.root.join("tmp", "test-image-#{digest}.png")
+      unless path.exist?
+        seed = digest.to_i(16)
+        FileUtils.mkdir_p(path.dirname)
+        Vips::Image.black(8 + (seed % 24), 8 + ((seed >> 16) % 24)).write_to_file(path.to_s)
+      end
+      path.to_s
     end
 
     def sample_path
@@ -39,8 +53,8 @@ module Photos
 
     test "expands a zip into a photo per contained image, skipping junk entries" do
       zip = zip_upload(
-        "photos/one.png" => sample_path,
-        "photos/two.jpg" => sample_path,
+        "photos/one.png" => image_path_for("one.png"),
+        "photos/two.jpg" => image_path_for("two.jpg"),
         "photos/readme.txt" => sample_path,        # non-image, skipped
         "__MACOSX/._one.png" => sample_path,       # mac junk, skipped
         ".hidden.png" => sample_path               # dotfile, skipped
@@ -55,7 +69,7 @@ module Photos
     end
 
     test "mixes loose images and zips in one batch" do
-      zip = zip_upload("z/a.png" => sample_path)
+      zip = zip_upload("z/a.png" => image_path_for("a.png"))
       result = BatchUpload.call(files: [ image_upload("loose.png"), zip ])
 
       assert_equal 2, result.count
@@ -100,7 +114,7 @@ module Photos
 
     def blob(filename = "direct.png")
       ActiveStorage::Blob.create_and_upload!(
-        io: file_fixture("sample.png").open, filename: filename, content_type: "image/png"
+        io: File.open(image_path_for(filename)), filename: filename, content_type: "image/png"
       )
     end
 
@@ -116,7 +130,7 @@ module Photos
     end
 
     test "mixes direct-uploaded images (signed_ids) and a zip in one submit" do
-      zip = zip_upload("z/a.png" => sample_path)
+      zip = zip_upload("z/a.png" => image_path_for("a.png"))
       result = BatchUpload.call(signed_ids: [ blob.signed_id ], files: [ zip ])
 
       assert_equal 2, result.count
@@ -188,6 +202,99 @@ module Photos
 
       assert_equal 0, result.count
       assert_match(/unsupported file type/, result.errors.to_sentence)
+    end
+
+    # ---- Re-upload updates placement ----
+    #
+    # Kassie's actual request: her phone albums are already organised by
+    # community and floorplan, so re-uploading should carry that placement onto
+    # photos already in the library rather than warn about duplicates.
+
+    def existing_photo(filename: "kitchen.png")
+      result = BatchUpload.call(files: [ image_upload(filename) ])
+      result.created.first
+    end
+
+    test "a re-upload updates the existing photo's placement instead of duplicating it" do
+      community = Community.create!(code: "1682", name: "Bradbury")
+      floorplan = community.floorplans.create!(name: "Abigail", elevation: "1A")
+      existing = existing_photo
+
+      assert_no_difference -> { Photo.count } do
+        result = BatchUpload.call(files: [ image_upload("kitchen.png") ],
+          community_id: community.id, floorplan_id: floorplan.id)
+
+        assert_equal 0, result.count
+        assert_equal 1, result.updated_count
+        assert result.success?
+      end
+
+      existing.reload
+      assert_equal community.id, existing.community_id
+      assert_equal floorplan.id, existing.floorplan_id
+    end
+
+    test "a re-upload never clears placement the photo already had" do
+      community = Community.create!(code: "1682", name: "Bradbury")
+      existing = existing_photo
+      existing.update!(community: community)
+
+      BatchUpload.call(files: [ image_upload("kitchen.png") ]) # no location chosen
+
+      assert_equal community.id, existing.reload.community_id
+    end
+
+    # The line that protects the hand-placed pins.
+    test "a re-upload leaves tags, pins and processed state untouched" do
+      community = Community.create!(code: "1682", name: "Bradbury")
+      existing = existing_photo
+      sku = Sku.create!(product_code: "AAA")
+      PhotoSku.create!(photo: existing, sku: sku, variant_value: "Chrome", pos_x: 0.4, pos_y: 0.6)
+      existing.update!(status: :complete, processed_by: users(:one), processed_at: Time.current)
+
+      BatchUpload.call(files: [ image_upload("kitchen.png") ], community_id: community.id)
+
+      existing.reload
+      assert existing.complete?
+      assert_equal users(:one), existing.processed_by
+      tag = existing.photo_skus.sole
+      assert_equal "Chrome", tag.variant_value
+      assert_in_delta 0.4, tag.pos_x
+    end
+
+    test "the redundant re-uploaded blob is purged rather than kept" do
+      existing_photo
+      before = ActiveStorage::Blob.count
+
+      perform_enqueued_jobs { BatchUpload.call(files: [ image_upload("kitchen.png") ]) }
+
+      assert_equal before, ActiveStorage::Blob.count
+    end
+
+    test "update_existing: false keeps a genuine second copy" do
+      existing_photo
+
+      assert_difference -> { Photo.count }, 1 do
+        result = BatchUpload.call(files: [ image_upload("kitchen.png") ], update_existing: false)
+        assert_equal 1, result.count
+        assert_equal 0, result.updated_count
+      end
+    end
+
+    test "re-uploads arriving as signed_ids are folded in too" do
+      existing = existing_photo
+      dup = ActiveStorage::Blob.create_and_upload!(
+        io: File.open(image_path_for("kitchen.png")), filename: "again.png",
+        content_type: "image/png"
+      )
+      community = Community.create!(code: "1682", name: "Bradbury")
+
+      assert_no_difference -> { Photo.count } do
+        result = BatchUpload.call(signed_ids: [ dup.signed_id ], community_id: community.id)
+        assert_equal 1, result.updated_count
+      end
+
+      assert_equal community.id, existing.reload.community_id
     end
 
     test "an invalid signed_id is reported, not fatal" do

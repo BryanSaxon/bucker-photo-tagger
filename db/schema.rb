@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_06_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_06_000004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -34,6 +34,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000003) do
     t.string "key", null: false
     t.text "metadata"
     t.string "service_name", null: false
+    t.index ["checksum", "byte_size"], name: "index_active_storage_blobs_on_checksum_and_byte_size"
+    t.index ["filename", "byte_size"], name: "index_active_storage_blobs_on_filename_and_byte_size"
     t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
   end
 
@@ -173,6 +175,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000003) do
   create_table "photos", force: :cascade do |t|
     t.bigint "community_id"
     t.datetime "created_at", null: false
+    t.bigint "duplicate_of_id"
     t.bigint "floorplan_id"
     t.string "name", null: false
     t.datetime "processed_at"
@@ -182,6 +185,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000003) do
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["community_id"], name: "index_photos_on_community_id"
+    t.index ["duplicate_of_id"], name: "index_photos_on_duplicate_of_id"
     t.index ["floorplan_id"], name: "index_photos_on_floorplan_id"
     t.index ["name"], name: "index_photos_on_name"
     t.index ["name"], name: "index_photos_on_name_trgm", opclass: :gin_trgm_ops, using: :gin
@@ -332,6 +336,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000003) do
   add_foreign_key "photo_skus", "skus"
   add_foreign_key "photos", "communities"
   add_foreign_key "photos", "floorplans"
+  add_foreign_key "photos", "photos", column: "duplicate_of_id", on_delete: :nullify
   add_foreign_key "photos", "room_types", on_delete: :nullify
   add_foreign_key "photos", "rooms", on_delete: :nullify
   add_foreign_key "photos", "users", column: "processed_by_id"

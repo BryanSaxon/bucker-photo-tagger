@@ -8,6 +8,19 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
     @sku = Sku.create!(product_code: "AAA", short_description: "Faucet")
   end
 
+  # Distinct bytes per name: uploading the same fixture twice is now correctly
+  # treated as re-uploading one photo, not adding two.
+  def distinct_upload(name)
+    digest = Digest::MD5.hexdigest(name)
+    path = Rails.root.join("tmp", "test-image-#{digest}.png")
+    unless path.exist?
+      seed = digest.to_i(16)
+      FileUtils.mkdir_p(path.dirname)
+      Vips::Image.black(8 + (seed % 24), 8 + ((seed >> 16) % 24)).write_to_file(path.to_s)
+    end
+    Rack::Test::UploadedFile.new(path.to_s, "image/png", original_filename: name)
+  end
+
   def create_photo(name:, status: :unprocessed)
     photo = Photo.new(name: name, status: status)
     photo.image.attach(io: file_fixture("sample.png").open, filename: "sample.png", content_type: "image/png")
@@ -46,10 +59,7 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
 
   test "uploads multiple photos as unprocessed" do
     sign_in_as(@user)
-    files = [
-      fixture_file_upload("sample.png", "image/png"),
-      fixture_file_upload("sample.png", "image/png")
-    ]
+    files = [ distinct_upload("one.png"), distinct_upload("two.png") ]
 
     assert_difference -> { Photo.count }, 2 do
       post photos_path, params: { photo: { images: files } }
@@ -135,7 +145,7 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
   test "uploading with a location stamps it on every created photo" do
     room = @community.rooms.create!(room_code: "KIT", room_desc: "Kitchen")
     sign_in_as(@user)
-    files = [ fixture_file_upload("sample.png", "image/png"), fixture_file_upload("sample.png", "image/png") ]
+    files = [ distinct_upload("three.png"), distinct_upload("four.png") ]
 
     assert_difference -> { Photo.count }, 2 do
       post photos_path, params: { photo: {
@@ -189,6 +199,39 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
     get sku_search_photo_path(photo, q: "faucet") # unscoped shows both
     assert_match "ZZZ", @response.body
     assert_equal elsewhere.product_code, "ZZZ"
+  end
+
+  # ---- Re-upload ----
+
+  test "re-uploading a photo applies the new location instead of adding a copy" do
+    sign_in_as(@user)
+    post photos_path, params: { photo: { images: [ distinct_upload("album.png") ] } }
+    original = Photo.order(:created_at).last
+    assert_nil original.community_id
+
+    assert_no_difference -> { Photo.count } do
+      post photos_path, params: { photo: {
+        images: [ distinct_upload("album.png") ],
+        community_id: @community.id, floorplan_id: @floorplan.id
+      } }
+    end
+
+    assert_redirected_to photos_path
+    assert_match(/placement updated/, flash[:notice])
+    original.reload
+    assert_equal @community.id, original.community_id
+    assert_equal @floorplan.id, original.floorplan_id
+  end
+
+  test "unchecking the update option keeps a deliberate second copy" do
+    sign_in_as(@user)
+    post photos_path, params: { photo: { images: [ distinct_upload("album2.png") ] } }
+
+    assert_difference -> { Photo.count }, 1 do
+      post photos_path, params: { photo: {
+        images: [ distinct_upload("album2.png") ], update_existing: "0"
+      } }
+    end
   end
 
   # ---- Search tabs ----

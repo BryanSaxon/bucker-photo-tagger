@@ -39,13 +39,12 @@ class PhotosController < ApplicationController
       community_id: upload_params[:community_id],
       floorplan_id: upload_params[:floorplan_id],
       room_id: upload_params[:room_id],
-      room_type_id: upload_params[:room_type_id]
+      room_type_id: upload_params[:room_type_id],
+      update_existing: upload_params[:update_existing] != "0"
     )
 
-    if result.count.positive?
-      notice = "Uploaded #{result.count} #{'photo'.pluralize(result.count)}. Ready to process."
-      notice += " #{result.errors.size} #{'file'.pluralize(result.errors.size)} skipped." if result.errors.any?
-      redirect_to photos_path, notice: notice
+    if result.count.positive? || result.updated_count.positive?
+      redirect_to photos_path, notice: upload_notice(result)
     else
       @photo = Photo.new
       load_upload_data
@@ -111,6 +110,20 @@ class PhotosController < ApplicationController
 
   private
 
+  # Re-uploads are reported as their own outcome: a designer re-uploading from
+  # an organised phone album wants to know the placement landed, not that
+  # nothing happened.
+  def upload_notice(result)
+    parts = []
+    parts << "Uploaded #{result.count} #{'photo'.pluralize(result.count)}." if result.count.positive?
+    if result.updated_count.positive?
+      parts << "#{result.updated_count} #{'photo'.pluralize(result.updated_count)} " \
+        "already in the library — placement updated."
+    end
+    parts << "#{result.errors.size} #{'file'.pluralize(result.errors.size)} skipped." if result.errors.any?
+    parts.join(" ")
+  end
+
   def set_photo
     @photo = Photo.find(params[:id])
   end
@@ -142,7 +155,8 @@ class PhotosController < ApplicationController
   end
 
   def upload_params
-    params.require(:photo).permit(:community_id, :floorplan_id, :room_id, :room_type_id)
+    params.require(:photo).permit(:community_id, :floorplan_id, :room_id, :room_type_id,
+      :update_existing)
   end
 
   def photo_params
