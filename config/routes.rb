@@ -9,6 +9,9 @@ Rails.application.routes.draw do
     member do
       # SKU search results for the processing panel (Turbo-driven live filter).
       get :sku_search
+      # One selected-SKU row, rendered server-side when a SKU is added so the
+      # partial stays the only place that markup lives.
+      get :selected_sku_row
     end
   end
 

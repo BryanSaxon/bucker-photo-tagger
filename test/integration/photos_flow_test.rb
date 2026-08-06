@@ -173,4 +173,113 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
     assert_match "ZZZ", @response.body
     assert_equal elsewhere.product_code, "ZZZ"
   end
+
+  # ---- Variants ----
+
+  test "saving selections persists the chosen finish" do
+    photo = create_photo(name: "Kitchen")
+    sign_in_as(@user)
+
+    patch photo_path(photo), params: { photo: {
+      community_id: @community.id,
+      skus: [ { id: @sku.id, variant_value: "Matte Black", pos_x: "0.4", pos_y: "0.6" } ]
+    } }
+
+    assert_redirected_to photos_path
+    tag = photo.reload.photo_skus.sole
+    assert_equal "Matte Black", tag.variant_value
+    assert_in_delta 0.4, tag.pos_x
+  end
+
+  test "one product can be tagged twice in a photo under two finishes" do
+    photo = create_photo(name: "Kitchen")
+    sign_in_as(@user)
+
+    patch photo_path(photo), params: { photo: {
+      skus: [
+        { id: @sku.id, variant_value: "Matte Black", pos_x: "0.1", pos_y: "0.1" },
+        { id: @sku.id, variant_value: "Chrome", pos_x: "0.9", pos_y: "0.9" }
+      ]
+    } }
+
+    assert_redirected_to photos_path
+    assert_equal [ "Chrome", "Matte Black" ], photo.reload.photo_skus.map(&:variant_value).sort
+  end
+
+  test "the processing screen renders a finish picker only for products with choices" do
+    plain = Sku.create!(product_code: "PLAIN", short_description: "Plain Item")
+    varied = Sku.create!(product_code: "VAR", short_description: "Varied Item",
+      attribute1_desc: "Finish**", attribute1: "Chrome,Matte Black")
+    photo = create_photo(name: "Kitchen")
+    PhotoSku.create!(photo: photo, sku: plain)
+    PhotoSku.create!(photo: photo, sku: varied, variant_value: "Chrome")
+    sign_in_as(@user)
+
+    get photo_path(photo)
+    assert_response :success
+    assert_select "select[data-role=?]", "variant-select", count: 1
+    assert_select "option[value=?]", "Matte Black"
+    # The "**" required-marker is a source-catalog artifact, not a label.
+    assert_no_match(/Finish\*\*/, @response.body)
+  end
+
+  test "selected_sku_row renders a row carrying the product's finish options" do
+    varied = Sku.create!(product_code: "VAR2", short_description: "Varied",
+      attribute1_desc: "Color**", attribute1: "White,Black")
+    photo = create_photo(name: "Kitchen")
+    sign_in_as(@user)
+
+    get selected_sku_row_photo_path(photo, sku_id: varied.id)
+    assert_response :success
+    assert_select "option[value=?]", "White"
+    assert_select "option[value=?]", "__other__"
+    assert_select "input[name=?]", "photo[skus][][id]"
+  end
+
+  test "a product without finishes still submits a variant_value key" do
+    plain = Sku.create!(product_code: "PLAIN2", short_description: "Plain")
+    photo = create_photo(name: "Kitchen")
+    sign_in_as(@user)
+
+    get selected_sku_row_photo_path(photo, sku_id: plain.id)
+    assert_response :success
+    # Rails groups photo[skus][][…] by repeating key, so every row must carry
+    # the same key set or values merge across rows.
+    assert_select "input[type=hidden][name=?]", "photo[skus][][variant_value]"
+  end
+
+  test "the needs-a-finish queue lists only completed photos missing a recorded finish" do
+    varied = Sku.create!(product_code: "VAR3", attribute1: "Chrome,Matte Black")
+
+    needs = create_photo(name: "Needs a finish", status: :complete)
+    PhotoSku.create!(photo: needs, sku: varied) # choices exist, none recorded
+
+    done = create_photo(name: "Already finished", status: :complete)
+    PhotoSku.create!(photo: done, sku: varied, variant_value: "Chrome")
+
+    plain = create_photo(name: "No choices to make", status: :complete)
+    PhotoSku.create!(photo: plain, sku: @sku) # product has no finish options
+
+    sign_in_as(@user)
+    get photos_path(status: "complete", filter: "missing_variants")
+
+    assert_response :success
+    assert_match "Needs a finish", @response.body
+    assert_no_match "Already finished", @response.body
+    assert_no_match "No choices to make", @response.body
+  end
+
+  test "unpermitted sku keys are dropped rather than assigned" do
+    photo = create_photo(name: "Kitchen")
+    sign_in_as(@user)
+
+    patch photo_path(photo), params: { photo: {
+      skus: [ { id: @sku.id, variant_value: "Chrome", pos_x: "0.5", pos_y: "0.5", sku_id: 999 } ]
+    } }
+
+    assert_redirected_to photos_path
+    tag = photo.reload.photo_skus.sole
+    assert_equal "Chrome", tag.variant_value
+    assert_equal @sku.id, tag.sku_id
+  end
 end

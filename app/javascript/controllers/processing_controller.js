@@ -8,7 +8,7 @@ export default class extends Controller {
     "stage", "image", "markers", "community", "floorplan", "room", "scopeToggle",
     "search", "results", "selected", "selectedItem", "selectedCount", "emptyHint"
   ]
-  static values = { skuSearchUrl: String }
+  static values = { skuSearchUrl: String, rowUrl: String }
 
   connect() {
     this.pinningId = null
@@ -47,22 +47,37 @@ export default class extends Controller {
     }
   }
 
-  // Disable results already in the current (client-side) selection.
+  // Grey out results already selected — but only products without variants,
+  // since one with finishes can legitimately be added again.
   syncResultDisabledState() {
     this.resultsTarget.querySelectorAll(".sku-result").forEach((el) => {
-      el.disabled = this.isSelected(el.dataset.skuId)
+      el.disabled = el.dataset.hasVariants !== "true" && !!this.rowFor(el.dataset.skuId, "")
     })
   }
 
   // ---- Selection ----
-  addSku(event) {
+  async addSku(event) {
     const el = event.currentTarget
     const id = el.dataset.skuId
-    if (this.isSelected(id)) return
+    const hasVariants = el.dataset.hasVariants === "true"
+    // A product with finishes may be added again (a second finish in the same
+    // photo); one without can only be tagged once.
+    if (!hasVariants && this.rowFor(id, "")) return
 
-    // Append to the END so existing pin numbers don't shift around.
-    this.selectedTarget.insertAdjacentHTML("beforeend",
-      this.rowHtml(id, el.dataset.code, el.dataset.desc))
+    // Rendered server-side so the variant options come from the Sku record and
+    // this markup exists in exactly one place.
+    const url = new URL(this.rowUrlValue, window.location.origin)
+    url.searchParams.set("sku_id", id)
+    try {
+      const res = await fetch(url, { headers: { Accept: "text/html" } })
+      if (!res.ok) throw new Error(res.status)
+      // Append to the END so existing pin numbers don't shift around.
+      this.selectedTarget.insertAdjacentHTML("beforeend", await res.text())
+    } catch (e) {
+      this.resultsTarget.innerHTML =
+        `<p class="text-mono-sm" style="padding:8px 2px;">Couldn’t add that SKU — try again.</p>`
+      return
+    }
 
     // Hide the results and clear the search so the user can type the next item.
     this.resultsTarget.innerHTML = ""
@@ -75,13 +90,49 @@ export default class extends Controller {
   removeSku(event) {
     const row = event.currentTarget.closest(".selected-sku")
     const id = row.dataset.skuId
+    const rowKey = this.rowKey(row)
     row.remove()
-    this.removeMarker(id)
+    this.removeMarker(rowKey)
     // Re-enable the matching search result if it's still shown.
     const result = this.resultsTarget.querySelector(`.sku-result[data-sku-id="${id}"]`)
-    if (result) result.disabled = false
-    if (this.pinningId === id) this.stopPinning()
+    if (result && !this.rowFor(id, "")) result.disabled = false
+    if (this.pinningId === rowKey) this.stopPinning()
     this.updateMeta()
+  }
+
+  // ---- Variant picker ----
+  // Choosing "Other…" swaps the form field over to the free-text input, so
+  // exactly one variant_value per row reaches the server and the "__other__"
+  // sentinel never does.
+  variantChanged(event) {
+    const select = event.currentTarget
+    const row = select.closest(".selected-sku")
+    const other = row.querySelector('[data-role="variant-other"]')
+    const isOther = select.value === "__other__"
+
+    other.style.display = isOther ? "" : "none"
+    if (isOther) { other.focus() } else { other.value = "" }
+    this.syncVariant(row)
+  }
+
+  variantOtherChanged(event) {
+    this.syncVariant(event.currentTarget.closest(".selected-sku"))
+  }
+
+  syncVariant(row) {
+    const select = row.querySelector('[data-role="variant-select"]')
+    const other = row.querySelector('[data-role="variant-other"]')
+    if (!select) return
+
+    const isOther = select.value === "__other__"
+    const value = isOther ? other.value.trim() : select.value
+
+    select.name = isOther ? "" : "photo[skus][][variant_value]"
+    other.name = isOther ? "photo[skus][][variant_value]" : ""
+
+    row.dataset.variant = value
+    row.dataset.rowKey = `${row.dataset.skuId}::${value}`
+    this.renderMarkers()
   }
 
   // ---- Pin placement ----
@@ -96,10 +147,12 @@ export default class extends Controller {
     }
   }
 
+  // Pins are tracked by (sku, variant) so the two finishes of one product can
+  // be pinned to different points in the same photo.
   startPin(row) {
-    const id = row.dataset.skuId
-    if (this.pinningId === id) { this.stopPinning(); return }
-    this.pinningId = id
+    const rowKey = this.rowKey(row)
+    if (this.pinningId === rowKey) { this.stopPinning(); return }
+    this.pinningId = rowKey
     this.stageTarget.classList.add("is-pinning")
   }
 
@@ -109,8 +162,9 @@ export default class extends Controller {
     row.classList.remove("is-pinned")
     const label = row.querySelector('[data-role="pin-label"]')
     if (label) label.textContent = "Pin"
-    if (this.pinningId === row.dataset.skuId) this.stopPinning()
-    this.removeMarker(row.dataset.skuId)
+    const rowKey = this.rowKey(row)
+    if (this.pinningId === rowKey) this.stopPinning()
+    this.removeMarker(rowKey)
   }
 
   stopPinning() {
@@ -125,7 +179,9 @@ export default class extends Controller {
     const y = (event.clientY - rect.top) / rect.height
     if (x < 0 || x > 1 || y < 0 || y > 1) return
 
-    const row = this.rowFor(this.pinningId)
+    const row = this.selectedTarget.querySelector(
+      `.selected-sku[data-row-key="${CSS.escape(this.pinningId)}"]`
+    )
     if (!row) return
     row.querySelector('[data-role="pos_x"]').value = x.toFixed(4)
     row.querySelector('[data-role="pos_y"]').value = y.toFixed(4)
@@ -185,7 +241,9 @@ export default class extends Controller {
       n += 1
       const marker = document.createElement("div")
       marker.className = "pin-marker"
-      marker.dataset.skuId = row.dataset.skuId
+      // Keyed by (sku, variant): keying on the sku alone made the two finishes
+      // of one product share a marker.
+      marker.dataset.rowKey = this.rowKey(row)
       marker.style.left = `${parseFloat(x) * 100}%`
       marker.style.top = `${parseFloat(y) * 100}%`
       marker.style.pointerEvents = "none"
@@ -195,19 +253,23 @@ export default class extends Controller {
     })
   }
 
-  removeMarker(id) {
-    const marker = this.markersTarget.querySelector(`.pin-marker[data-sku-id="${id}"]`)
+  removeMarker(rowKey) {
+    const marker = this.markersTarget.querySelector(`.pin-marker[data-row-key="${CSS.escape(rowKey)}"]`)
     if (marker) marker.remove()
     this.renderMarkers() // renumber
   }
 
   // ---- Helpers ----
-  isSelected(id) {
-    return !!this.rowFor(id)
+  // A tag is identified by (sku, variant), so a product with finishes can be
+  // present more than once and each row is addressed by both.
+  rowFor(id, variant = "") {
+    return this.selectedTarget.querySelector(
+      `.selected-sku[data-sku-id="${id}"][data-variant="${CSS.escape(variant)}"]`
+    )
   }
 
-  rowFor(id) {
-    return this.selectedTarget.querySelector(`.selected-sku[data-sku-id="${id}"]`)
+  rowKey(row) {
+    return `${row.dataset.skuId}::${row.dataset.variant || ""}`
   }
 
   updateMeta() {
@@ -216,17 +278,6 @@ export default class extends Controller {
     if (this.hasEmptyHintTarget) this.emptyHintTarget.style.display = count ? "none" : ""
   }
 
-  rowHtml(id, code, desc) {
-    const esc = (s) => (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-    return `
-      <div class="selected-sku" data-processing-target="selectedItem" data-sku-id="${esc(id)}" data-code="${esc(code)}" data-desc="${esc(desc)}">
-        <input type="hidden" name="photo[skus][][id]" value="${esc(id)}">
-        <input type="hidden" name="photo[skus][][pos_x]" value="" data-role="pos_x">
-        <input type="hidden" name="photo[skus][][pos_y]" value="" data-role="pos_y">
-        <span class="selected-sku__code">${esc(code)}</span>
-        <span class="selected-sku__desc">${esc(desc)}</span>
-        <button type="button" class="btn btn--ghost btn--sm" data-action="processing#togglePin" data-role="pin">📍 <span data-role="pin-label">Pin</span></button>
-        <button type="button" class="chip__remove" data-action="processing#removeSku" aria-label="Remove">×</button>
-      </div>`
-  }
+  // (rowHtml removed — rows are rendered by photos#selected_sku_row so
+  // _selected_sku.html.erb is the only place this markup lives.)
 }

@@ -1,13 +1,22 @@
 <% if skus.any? %>
   <% skus.each do |sku| %>
+    <%# A product with variants stays selectable after the first pick: the same
+        faucet can appear twice in one photo under two finishes. One without
+        variants can only be tagged once, so it greys out. %>
     <button type="button" class="sku-result"
             data-action="processing#addSku"
             data-sku-id="<%= sku.id %>"
             data-code="<%= sku.product_code %>"
             data-desc="<%= sku.display_name %>"
-            <%= "disabled" if selected_ids.include?(sku.id) %>>
+            data-has-variants="<%= sku.variants? %>"
+            <%= "disabled" if !sku.variants? && selected_keys.include?([ sku.id, "" ]) %>>
       <span class="sku-result__code"><%= sku.product_code %></span>
       <span class="sku-result__desc"><%= sku.display_name %></span>
+      <% if sku.variants? %>
+        <span class="sku-result__variant">
+          <%= sku.variant_label || "#{sku.attribute_choices.size} options" %>
+        </span>
+      <% end %>
       <% if sku.category_code.present? %>
         <span class="sku-result__cat"><%= sku.category_code %></span>
       <% end %>

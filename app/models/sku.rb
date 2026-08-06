@@ -16,19 +16,25 @@ class Sku < ApplicationRecord
 
   scope :ordered, -> { order(:short_description, :product_code) }
 
-  # Free-text search across the fields the source catalog actually provides:
-  # the product code, its description, and its category/subcategory codes.
-  # (The API has no manufacturer or price on the product record.)
-  scope :search, ->(query) {
-    term = query.to_s.strip
-    next all if term.blank?
+  # Columns the source catalog actually provides. attribute1 holds the variant
+  # choices themselves ("Matte Black,Chrome,…") — without it, searching for a
+  # finish matches nothing, which is why "white mirror" never surfaced the
+  # round/square options. (The API has no manufacturer or price on a product.)
+  SEARCH_COLUMNS = %w[
+    product_code short_description category_code subcategory_code
+    attribute1_desc attribute1
+  ].freeze
 
-    like = "%#{sanitize_sql_like(term)}%"
-    where(
-      "product_code ILIKE :q OR short_description ILIKE :q OR " \
-      "category_code ILIKE :q OR subcategory_code ILIKE :q OR attribute1_desc ILIKE :q",
-      q: like
-    )
+  # Every term must match somewhere, though not necessarily the same column, so
+  # "white mirror" finds a mirror whose variants include white. A single ILIKE
+  # over the whole query only ever matched terms that were adjacent in one
+  # column, which is the shape designers actually type.
+  scope :search, ->(query) {
+    terms = query.to_s.split(/\s+/).reject(&:blank?).first(6)
+    next all if terms.empty?
+
+    predicate = SEARCH_COLUMNS.map { |column| "skus.#{column} ILIKE :q" }.join(" OR ")
+    terms.reduce(all) { |scope, term| scope.where(predicate, q: "%#{sanitize_sql_like(term)}%") }
   }
 
   scope :in_category, ->(code) { code.present? ? where(category_code: code) : all }
@@ -62,6 +68,21 @@ class Sku < ApplicationRecord
   # Available variant choices (the API stores them as a CSV in attribute1).
   def attribute_choices
     attribute1.to_s.split(",").map(&:strip).reject(&:blank?)
+  end
+
+  def variants? = attribute_choices.any?
+
+  # The axis label the catalog uses for this product's variants ("Color",
+  # "Finish", "Size"). The source marks required attributes with a trailing
+  # "**", which is noise in a form label.
+  def variant_label
+    attribute1_desc.presence&.delete_suffix("**")&.strip.presence
+  end
+
+  # How many photos record each finish for this product — "where is the matte
+  # black one installed?", which is the point of tagging variants at all.
+  def tagged_variants
+    photo_skus.with_variant.group(:variant_value).count
   end
 
   # Does the source catalog have an image on file for this SKU? (Metadata only —

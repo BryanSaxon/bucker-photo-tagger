@@ -33,6 +33,17 @@ class Photo < ApplicationRecord
     term.present? ? where("name ILIKE ?", "%#{sanitize_sql_like(term)}%") : all
   }
 
+  # Photos carrying a tag with no finish recorded against a product that offers
+  # choices — the re-visit queue for work tagged before variants existed.
+  # Adding the missing finish keeps the hand-placed pins, unlike re-tagging.
+  scope :missing_variants, -> {
+    where(
+      "EXISTS (SELECT 1 FROM photo_skus ps JOIN skus s ON s.id = ps.sku_id " \
+      "WHERE ps.photo_id = photos.id AND ps.variant_value = '' " \
+      "AND s.attribute1 IS NOT NULL AND s.attribute1 <> '')"
+    )
+  }
+
   # Persist the processor's selections and mark the photo complete.
   def mark_complete!(user)
     update!(status: :complete, processed_by: user, processed_at: Time.current)

@@ -20,7 +20,8 @@
 
 <%= form_with model: @photo, url: photo_path(@photo), method: :patch, data: {
       controller: "processing",
-      processing_sku_search_url_value: sku_search_photo_path(@photo)
+      processing_sku_search_url_value: sku_search_photo_path(@photo),
+      processing_row_url_value: selected_sku_row_photo_path(@photo)
     } do |f| %>
 
   <div class="process-grid">
@@ -66,7 +67,7 @@
       <div class="panel card-pad">
         <span class="eyebrow">SKUs in this photo</span>
         <div class="field" style="margin:12px 0;">
-          <input type="search" placeholder="Search name, code, category…" class="input"
+          <input type="search" placeholder="Search name, code, color or finish…" class="input"
                  data-processing-target="search" data-action="input->processing#search" autocomplete="off">
           <% if @context_scope_available %>
             <label class="text-mono-sm" style="display:flex; align-items:center; gap:6px; margin-top:8px; cursor:pointer;">
@@ -82,7 +83,8 @@
         </span>
         <div class="selected-skus" data-processing-target="selected">
           <% @photo_skus.each do |ps| %>
-            <%= render "photos/selected_sku", photo_sku: ps %>
+            <%= render "photos/selected_sku", sku: ps.sku, variant_value: ps.variant_value,
+                  pos_x: ps.pos_x, pos_y: ps.pos_y %>
           <% end %>
         </div>
         <p class="text-mono-sm" data-processing-target="emptyHint"

@@ -1,18 +1,23 @@
 class PhotosController < ApplicationController
-  before_action :set_photo, only: %i[show update destroy sku_search]
+  before_action :set_photo, only: %i[show update destroy sku_search selected_sku_row]
 
   # Index defaults to photos that still need processing, with a toggle for
-  # completed photos and a name search.
+  # completed photos, a name search, and a queue of photos tagged before
+  # finishes could be recorded.
   def index
     @show_completed = params[:status] == "complete"
+    @missing_variants = params[:filter] == "missing_variants"
     @query = params[:q].to_s.strip
 
     scope = @show_completed ? Photo.complete : Photo.unprocessed
+    scope = scope.missing_variants if @missing_variants
     scope = scope.search(@query).recent.with_attached_image
     @pagy, @photos = pagy(scope)
 
     @unprocessed_count = Photo.unprocessed.count
     @complete_count = Photo.complete.count
+    # Completed photos still missing a finish — the re-visit queue.
+    @missing_variants_count = Photo.complete.missing_variants.count
   end
 
   def new
@@ -83,8 +88,19 @@ class PhotosController < ApplicationController
     skus = Sku.search(@query).in_category(params[:category])
     skus = skus.for_context(community_id: @photo.community_id, room_id: @photo.room_id) if @scoped
     @skus = skus.ordered.limit(50)
-    @selected_ids = @photo.sku_ids
-    render partial: "photos/sku_results", locals: { skus: @skus, selected_ids: @selected_ids }
+    # (sku_id, variant) pairs — a product with variants can be added more than
+    # once, so it stays selectable after the first pick.
+    @selected_keys = @photo.photo_skus.pluck(:sku_id, :variant_value)
+    render partial: "photos/sku_results", locals: { skus: @skus, selected_keys: @selected_keys }
+  end
+
+  # One row of the selected-SKU list, rendered on the server so the partial
+  # stays the single source of truth for the markup — the variant picker's
+  # options come straight off the Sku record rather than being rebuilt in JS.
+  def selected_sku_row
+    sku = Sku.find(params[:sku_id])
+    render partial: "photos/selected_sku",
+      locals: { sku: sku, variant_value: "", pos_x: nil, pos_y: nil }
   end
 
   private
@@ -108,7 +124,8 @@ class PhotosController < ApplicationController
     # All rooms are rendered (filtered client-side by community, like floorplans)
     # so a room stays selectable even if the community is changed here.
     @rooms = Room.order(:room_desc, :room_code)
-    @photo_skus = @photo.photo_skus.includes(:sku)
+    # Ordered so pin numbering stays stable across reloads.
+    @photo_skus = @photo.photo_skus.includes(:sku).order(:id)
     @category_codes = Sku.category_codes
     # Does the photo's context actually resolve to any products? Drives whether
     # the "limit to this location" scoping is offered/defaulted on.
@@ -121,6 +138,7 @@ class PhotosController < ApplicationController
   end
 
   def photo_params
-    params.require(:photo).permit(:community_id, :floorplan_id, :room_id, skus: %i[id pos_x pos_y])
+    params.require(:photo).permit(:community_id, :floorplan_id, :room_id,
+      skus: %i[id pos_x pos_y variant_value])
   end
 end

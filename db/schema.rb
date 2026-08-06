@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_24_044533) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_06_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -161,8 +161,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_044533) do
     t.float "pos_y"
     t.bigint "sku_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["photo_id", "sku_id"], name: "index_photo_skus_on_photo_id_and_sku_id", unique: true
+    t.string "variant_value", default: "", null: false
+    t.index ["photo_id", "sku_id", "variant_value"], name: "index_photo_skus_on_photo_sku_variant", unique: true
     t.index ["photo_id"], name: "index_photo_skus_on_photo_id"
+    t.index ["sku_id", "variant_value"], name: "index_photo_skus_on_sku_id_and_variant_value"
     t.index ["sku_id"], name: "index_photo_skus_on_sku_id"
   end
 

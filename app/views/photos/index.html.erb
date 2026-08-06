@@ -17,8 +17,17 @@
       Needs processing <span class="segmented__count"><%= @unprocessed_count %></span>
     <% end %>
     <%= link_to photos_path(status: "complete", q: @query.presence),
-          class: class_names("segmented__item", "is-active": @show_completed) do %>
+          class: class_names("segmented__item", "is-active": @show_completed && !@missing_variants) do %>
       Completed <span class="segmented__count"><%= @complete_count %></span>
+    <% end %>
+    <%# Photos tagged before finishes could be recorded. Adding the finish here
+        keeps the hand-placed pins, unlike re-tagging from scratch. %>
+    <% if @missing_variants_count.positive? %>
+      <%= link_to photos_path(status: "complete", filter: "missing_variants", q: @query.presence),
+            class: class_names("segmented__item", "is-active": @missing_variants),
+            title: "Completed photos where a product with finish options has no finish recorded" do %>
+        Needs a finish <span class="segmented__count"><%= @missing_variants_count %></span>
+      <% end %>
     <% end %>
   </div>
 
