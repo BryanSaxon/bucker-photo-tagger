@@ -160,12 +160,18 @@ export default class extends Controller {
 
     Array.from(this.roomTarget.options).forEach((opt) => {
       if (!opt.value) return
-      const matches = communityId && opt.dataset.communityId === communityId
+      // With no community chosen, show every room (same rule as floorplans
+      // above). Requiring a community here hid all of them, which is what made
+      // the room picker look broken.
+      const matches = !communityId || opt.dataset.communityId === communityId
       opt.hidden = !matches
       if (!matches && opt.selected) { opt.selected = false; cleared = true }
     })
     if (cleared) this.roomTarget.value = ""
-    this.roomTarget.disabled = !communityId
+    // Deliberately NOT disabled when no community is set: a disabled select is
+    // not submitted, so saving a photo that had a room but no community erased
+    // the stored room_id. Photo#context_is_consistent already rejects a genuine
+    // mismatch, and SaveSelections back-fills the community from a lone room.
   }
 
   // ---- Markers ----

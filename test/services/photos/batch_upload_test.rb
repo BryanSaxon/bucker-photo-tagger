@@ -3,6 +3,8 @@ require "zip"
 
 module Photos
   class BatchUploadTest < ActiveSupport::TestCase
+    include ActiveJob::TestHelper
+
     # Always reads the real sample.png fixture; `name` only sets the filename.
     def image_upload(name = "sample.png", type = "image/png")
       Rack::Test::UploadedFile.new(file_fixture("sample.png"), type, original_filename: name)
@@ -125,6 +127,41 @@ module Photos
       result = BatchUpload.call(signed_ids: [ blob.signed_id ], community_id: community.id)
 
       assert_equal community.id, result.created.first.community_id
+    end
+
+    test "a direct-uploaded file of an unsupported type is rejected, not silently kept" do
+      heic = ActiveStorage::Blob.create_and_upload!(
+        io: file_fixture("sample.png").open, filename: "IMG_0042.HEIC", content_type: "image/heic"
+      )
+
+      assert_no_difference -> { Photo.count } do
+        result = BatchUpload.call(signed_ids: [ heic.signed_id ])
+
+        assert_equal 0, result.count
+        assert_not result.success?
+        assert_match(/HEIC photos aren’t supported yet/, result.errors.to_sentence)
+        assert_match(/Most Compatible/, result.errors.to_sentence)
+      end
+    end
+
+    test "a rejected direct upload purges its blob rather than paying storage for it" do
+      heic = ActiveStorage::Blob.create_and_upload!(
+        io: file_fixture("sample.png").open, filename: "IMG_0043.heic", content_type: "image/heic"
+      )
+
+      perform_enqueued_jobs { BatchUpload.call(signed_ids: [ heic.signed_id ]) }
+
+      assert_not ActiveStorage::Blob.exists?(heic.id)
+    end
+
+    test "a non-image direct upload gets the generic unsupported message" do
+      txt = ActiveStorage::Blob.create_and_upload!(
+        io: file_fixture("sample.png").open, filename: "notes.txt", content_type: "text/plain"
+      )
+      result = BatchUpload.call(signed_ids: [ txt.signed_id ])
+
+      assert_equal 0, result.count
+      assert_match(/unsupported file type/, result.errors.to_sentence)
     end
 
     test "an invalid signed_id is reported, not fatal" do

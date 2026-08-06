@@ -13,6 +13,9 @@ module Photos
     end
 
     IMAGE_EXTENSIONS = %w[.jpg .jpeg .png .webp .gif].freeze
+    # Recognized only so the rejection can explain itself — see #unsupported_message.
+    # Decoding these needs libheif, which the Render native runtime doesn't provide.
+    HEIC_EXTENSIONS = %w[.heic .heif].freeze
     CONTENT_TYPES = {
       ".jpg" => "image/jpeg", ".jpeg" => "image/jpeg", ".png" => "image/png",
       ".webp" => "image/webp", ".gif" => "image/gif"
@@ -55,14 +58,26 @@ module Photos
     # Attach an already-uploaded blob (no bytes pass through the server).
     def ingest_signed_id(signed_id, context, created, errors)
       blob = ActiveStorage::Blob.find_signed!(signed_id)
+      filename = blob.filename.to_s
+
+      # The direct-upload path must apply the same allowlist #ingest does. The
+      # browser routes anything reporting image/* here — including HEIC, which
+      # libvips can't decode in this deployment — so without this check a Photo
+      # was created and its thumbnail then failed silently in the background.
+      unless image?(filename)
+        blob.purge_later # otherwise the rejected upload pays R2 storage forever
+        errors << unsupported_message(filename)
+        return
+      end
+
       photo = Photo.new(
-        name: File.basename(blob.filename.to_s, ".*").presence || "photo",
+        name: File.basename(filename, ".*").presence || "photo",
         community_id: context[:community_id],
         floorplan_id: context[:floorplan_id],
         room_id: context[:room_id]
       )
       photo.image.attach(blob)
-      record(photo, blob.filename.to_s, created, errors)
+      record(photo, filename, created, errors)
     rescue StandardError => e
       errors << "An uploaded file could not be attached (#{e.class})."
     end
@@ -75,7 +90,18 @@ module Photos
           content_type: file.content_type, context: context)
         record(photo, file.original_filename, created, errors)
       else
-        errors << "#{file.original_filename}: unsupported file type (skipped)."
+        errors << unsupported_message(file.original_filename)
+      end
+    end
+
+    # HEIC/HEIF gets its own guidance: it's the common iPhone default and the
+    # fix is a camera setting, not something the designer can guess at.
+    def unsupported_message(filename)
+      if HEIC_EXTENSIONS.include?(File.extname(filename.to_s).downcase)
+        "#{filename}: HEIC photos aren’t supported yet — on iPhone, set " \
+          "Settings → Camera → Formats → Most Compatible, or export as JPEG."
+      else
+        "#{filename}: unsupported file type (skipped)."
       end
     end
 
