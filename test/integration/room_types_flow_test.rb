@@ -31,16 +31,62 @@ class RoomTypesFlowTest < ActionDispatch::IntegrationTest
     assert_equal "screened_porch", RoomType.last.key
   end
 
-  test "an admin can rename and reorder a type" do
+  test "an admin can rename a type" do
     sign_in_as(@admin)
     type = RoomType.find_by(key: "outdoor_living")
 
-    patch room_type_path(type), params: { room_type: { name: "Covered Patio", sort_order: 5 } }
+    patch room_type_path(type), params: { room_type: { name: "Covered Patio" } }
 
     assert_redirected_to room_types_path
-    type.reload
-    assert_equal "Covered Patio", type.name
-    assert_equal 5, type.sort_order
+    assert_equal "Covered Patio", type.reload.name
+  end
+
+  # ---- Drag to reorder ----
+
+  test "reorder rewrites positions from the submitted sequence" do
+    sign_in_as(@admin)
+    ids = RoomType.ordered.limit(3).pluck(:id)
+
+    post reorder_room_types_path, params: { ids: ids.reverse.map(&:to_s) }
+
+    assert_response :no_content
+    assert_equal ids.reverse, RoomType.where(id: ids).order(:sort_order).pluck(:id)
+  end
+
+  test "reorder derives positions rather than trusting a client-sent order value" do
+    sign_in_as(@admin)
+    first, second = RoomType.ordered.limit(2)
+
+    post reorder_room_types_path, params: { ids: [ second.id.to_s, first.id.to_s ] }
+
+    assert_equal 10, second.reload.sort_order
+    assert_equal 20, first.reload.sort_order
+  end
+
+  test "reorder ignores ids that do not exist" do
+    sign_in_as(@admin)
+    real = RoomType.ordered.first
+
+    assert_nothing_raised do
+      post reorder_room_types_path, params: { ids: [ "999999", real.id.to_s ] }
+    end
+
+    assert_response :no_content
+    assert_equal 20, real.reload.sort_order
+  end
+
+  test "reorder requires authentication" do
+    post reorder_room_types_path, params: { ids: [] }
+    assert_redirected_to new_session_path
+  end
+
+  test "a new room type is appended to the end of the list" do
+    sign_in_as(@admin)
+    highest = RoomType.maximum(:sort_order)
+
+    post room_types_path, params: { room_type: { name: "Screened Porch" } }
+
+    assert_equal highest + 10, RoomType.find_by(name: "Screened Porch").sort_order
   end
 
   test "hiding a type removes it from the tagging picker but keeps existing photos" do

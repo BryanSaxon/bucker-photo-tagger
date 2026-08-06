@@ -317,3 +317,16 @@ h2.section-title { font: 600 18px/1.2 "Sora", sans-serif; letter-spacing: -.01em
 .stack { display: flex; flex-direction: column; }
 .muted { color: var(--muted); }
 .text-mono-sm { font: 500 12px "IBM Plex Mono", monospace; color: var(--muted); }
+
+/* Drag-to-reorder rows */
+.sortable-handle {
+  cursor: grab; color: var(--muted-2); font-size: 15px; line-height: 1;
+  user-select: none; padding-right: 2px;
+}
+.sortable-handle:active { cursor: grabbing; }
+tr[draggable="true"].is-dragging { opacity: .45; background: rgba(245, 166, 35, .08); }
+tr[draggable="true"]:hover .sortable-handle { color: var(--text); }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}

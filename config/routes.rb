@@ -16,7 +16,9 @@ Rails.application.routes.draw do
   end
 
   # Designer-facing room vocabulary, editable by admins.
-  resources :room_types, only: %i[index create update destroy]
+  resources :room_types, only: %i[index create update destroy] do
+    collection { post :reorder }
+  end
 
   # SKU catalog library + manual sync trigger.
   resources :skus, only: %i[index show]

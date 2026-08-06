@@ -12,6 +12,8 @@ class RoomTypesController < ApplicationController
   def create
     @room_type = RoomType.new(room_type_params)
     @room_type.key ||= @room_type.name.to_s.parameterize(separator: "_")
+    # New types land at the end; ordering is managed by dragging.
+    @room_type.sort_order = RoomType.maximum(:sort_order).to_i + 10
 
     if @room_type.save
       redirect_to room_types_path, notice: "Added “#{@room_type.name}”."
@@ -44,6 +46,23 @@ class RoomTypesController < ApplicationController
     end
   end
 
+  # Persist a drag-to-reorder. The submitted id sequence is the new order;
+  # positions are re-derived from it rather than trusted from the client.
+  def reorder
+    ids = Array(params[:ids]).map(&:to_i)
+    known = RoomType.where(id: ids).pluck(:id).to_set
+
+    RoomType.transaction do
+      ids.each_with_index do |id, index|
+        next unless known.include?(id)
+
+        RoomType.where(id: id).update_all(sort_order: (index + 1) * 10)
+      end
+    end
+
+    head :no_content
+  end
+
   private
 
   def set_room_type
@@ -51,6 +70,6 @@ class RoomTypesController < ApplicationController
   end
 
   def room_type_params
-    params.require(:room_type).permit(:key, :name, :sort_order, :active)
+    params.require(:room_type).permit(:key, :name, :active)
   end
 end
