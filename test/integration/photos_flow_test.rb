@@ -107,12 +107,29 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
   end
 
   test "the new upload page renders the cascading location selects" do
+    RoomType.load_vocabulary!
+    @community.rooms.create!(room_code: "KIT", room_desc: "Kitchen")
     sign_in_as(@user)
+
     get new_photo_path
+
     assert_response :success
     assert_select "select#photo_community_id"
     assert_select "select#photo_floorplan_id"
+    assert_select "select#photo_room_type_id"
+    # The catalog-code refinement, shown because this community has synced rooms.
     assert_select "select#photo_room_id"
+  end
+
+  test "the upload page hides the catalog room refinement when none are synced" do
+    RoomType.load_vocabulary!
+    sign_in_as(@user)
+
+    get new_photo_path
+
+    assert_response :success
+    assert_select "select#photo_room_type_id"
+    assert_select "select#photo_room_id", count: 0
   end
 
   test "uploading with a location stamps it on every created photo" do
@@ -172,6 +189,47 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
     get sku_search_photo_path(photo, q: "faucet") # unscoped shows both
     assert_match "ZZZ", @response.body
     assert_equal elsewhere.product_code, "ZZZ"
+  end
+
+  # ---- Room types ----
+
+  test "saving persists the chosen room type" do
+    RoomType.load_vocabulary!
+    kitchen = RoomType.find_by(key: "kitchen")
+    photo = create_photo(name: "Kitchen")
+    sign_in_as(@user)
+
+    patch photo_path(photo), params: { photo: { room_type_id: kitchen.id, skus: [] } }
+
+    assert_redirected_to photos_path
+    assert_equal kitchen.id, photo.reload.room_type_id
+  end
+
+  test "choosing only a specific catalog room derives its room type" do
+    RoomType.load_vocabulary!
+    room = @community.rooms.create!(room_code: "MBATH", room_desc: "Master Bath",
+      room_type: RoomType.find_by(key: "master_bathroom"))
+    photo = create_photo(name: "Bath")
+    sign_in_as(@user)
+
+    patch photo_path(photo), params: { photo: { room_id: room.id, skus: [] } }
+
+    assert_redirected_to photos_path
+    assert_equal "master_bathroom", photo.reload.room_type.key
+  end
+
+  test "the room picker is populated even with no catalog rooms synced" do
+    RoomType.load_vocabulary!
+    photo = create_photo(name: "Kitchen")
+    sign_in_as(@user)
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_select "select[name=?]", "photo[room_type_id]"
+    assert_select "option", text: "Master Bathroom"
+    # No catalog rooms exist, so the refinement is hidden rather than empty.
+    assert_select "select[name=?]", "photo[room_id]", count: 0
   end
 
   # ---- Variants ----

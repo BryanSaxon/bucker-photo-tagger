@@ -1,0 +1,36 @@
+# The designer-facing room vocabulary.
+#
+# Deliberately NOT the NewStart room dictionary: that is 226 catalog codes
+# scoped per community, which is the wrong vocabulary for someone looking at a
+# photograph. This list is Signature's own language and keeps the distinctions
+# they care about — master vs. secondary vs. powder — while dropping the codes.
+#
+# Seeded from here, then editable in the app (Room Types admin), so Signature
+# can adjust without a deploy. Editing this file only affects a fresh seed.
+- { key: master_bedroom,      name: "Master Bedroom",      sort_order: 10 }
+- { key: master_bathroom,     name: "Master Bathroom",     sort_order: 20 }
+- { key: secondary_bedroom,   name: "Secondary Bedroom",   sort_order: 30 }
+- { key: secondary_bathroom,  name: "Secondary Bathroom",  sort_order: 40 }
+- { key: powder_bath,         name: "Powder Bath",         sort_order: 50 }
+- { key: kitchen,             name: "Kitchen",             sort_order: 60 }
+- { key: pantry,              name: "Pantry",              sort_order: 70 }
+- { key: dining_room,         name: "Dining Room",         sort_order: 80 }
+- { key: living_room,         name: "Living Room",         sort_order: 90 }
+- { key: den,                 name: "Den",                 sort_order: 100 }
+- { key: loft,                name: "Loft",                sort_order: 110 }
+- { key: game_room,           name: "Game / Bonus Room",   sort_order: 120 }
+- { key: flex_room,           name: "Flex Room",           sort_order: 130 }
+- { key: office,              name: "Office / Study",      sort_order: 140 }
+- { key: entry,               name: "Entry / Foyer",       sort_order: 150 }
+- { key: hallway,             name: "Hallway / Stairs",    sort_order: 160 }
+- { key: closet,              name: "Closet",              sort_order: 170 }
+- { key: laundry,             name: "Laundry",             sort_order: 180 }
+- { key: mudroom,             name: "Mudroom",             sort_order: 190 }
+- { key: garage,              name: "Garage",              sort_order: 200 }
+- { key: outdoor_living,      name: "Outdoor Living",      sort_order: 210 }
+- { key: basement,            name: "Basement",            sort_order: 220 }
+- { key: exterior,            name: "Exterior",            sort_order: 230 }
+# The landing spot for anything that isn't a single identifiable room —
+# "Interior of home", "Included Hardwood Areas" and similar catalog entries.
+# Deliberately separate from Flex Room, which is a real room designers choose.
+- { key: whole_home,          name: "Whole Home / Other",  sort_order: 240 }

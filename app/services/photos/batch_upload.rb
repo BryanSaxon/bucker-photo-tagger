@@ -24,12 +24,14 @@ module Photos
 
     def self.call(...) = new(...).call
 
-    def initialize(files: nil, signed_ids: nil, community_id: nil, floorplan_id: nil, room_id: nil)
+    def initialize(files: nil, signed_ids: nil, community_id: nil, floorplan_id: nil,
+      room_id: nil, room_type_id: nil)
       @files = Array(files).reject(&:blank?)
       @signed_ids = Array(signed_ids).reject(&:blank?)
       @community_id = community_id.presence
       @floorplan_id = floorplan_id.presence
       @room_id = room_id.presence
+      @room_type_id = room_type_id.presence
     end
 
     def call
@@ -74,7 +76,8 @@ module Photos
         name: File.basename(filename, ".*").presence || "photo",
         community_id: context[:community_id],
         floorplan_id: context[:floorplan_id],
-        room_id: context[:room_id]
+        room_id: context[:room_id],
+        room_type_id: context[:room_type_id]
       )
       photo.image.attach(blob)
       record(photo, filename, created, errors)
@@ -143,7 +146,8 @@ module Photos
         name: File.basename(filename.to_s, ".*").presence || "photo",
         community_id: context[:community_id],
         floorplan_id: context[:floorplan_id],
-        room_id: context[:room_id]
+        room_id: context[:room_id],
+        room_type_id: context[:room_type_id]
       )
       photo.image.attach(io: io, filename: filename, content_type: content_type)
       photo
@@ -171,7 +175,10 @@ module Photos
         return Result.new(created: [], errors: [ "The selected room is not in the selected community." ])
       end
 
-      { community_id: community_id, floorplan_id: floorplan&.id, room_id: room&.id }
+      # A chosen catalog room already implies its designer-facing type.
+      room_type_id = @room_type_id || room&.room_type_id
+      { community_id: community_id, floorplan_id: floorplan&.id, room_id: room&.id,
+        room_type_id: room_type_id }
     end
 
     def zip?(file)

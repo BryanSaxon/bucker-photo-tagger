@@ -34,7 +34,8 @@ class PhotosController < ApplicationController
       signed_ids: params.dig(:photo, :signed_ids),
       community_id: upload_params[:community_id],
       floorplan_id: upload_params[:floorplan_id],
-      room_id: upload_params[:room_id]
+      room_id: upload_params[:room_id],
+      room_type_id: upload_params[:room_type_id]
     )
 
     if result.count.positive?
@@ -60,6 +61,7 @@ class PhotosController < ApplicationController
       community_id: photo_params[:community_id],
       floorplan_id: photo_params[:floorplan_id],
       room_id: photo_params[:room_id],
+      room_type_id: photo_params[:room_type_id],
       sku_entries: photo_params[:skus] || [],
       user: Current.user
     )
@@ -114,12 +116,14 @@ class PhotosController < ApplicationController
   # community is known (directly or via a chosen plan).
   def load_upload_data
     @communities = Community.ordered
+    @room_types = RoomType.available.ordered
     @floorplans = Floorplan.ordered.pluck(:id, :name, :elevation, :community_id)
     @rooms = Room.order(:room_desc, :room_code).pluck(:id, :room_desc, :room_code, :community_id)
   end
 
   def load_processing_data
     @communities = Community.ordered
+    @room_types = RoomType.available.ordered
     @floorplans = Floorplan.includes(:community).ordered
     # All rooms are rendered (filtered client-side by community, like floorplans)
     # so a room stays selectable even if the community is changed here.
@@ -134,11 +138,11 @@ class PhotosController < ApplicationController
   end
 
   def upload_params
-    params.require(:photo).permit(:community_id, :floorplan_id, :room_id)
+    params.require(:photo).permit(:community_id, :floorplan_id, :room_id, :room_type_id)
   end
 
   def photo_params
-    params.require(:photo).permit(:community_id, :floorplan_id, :room_id,
+    params.require(:photo).permit(:community_id, :floorplan_id, :room_id, :room_type_id,
       skus: %i[id pos_x pos_y variant_value])
   end
 end

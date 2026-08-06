@@ -50,10 +50,19 @@
                 data: { catalog_select_target: "plan", action: "catalog-select#planChanged" } %>
         </div>
         <div class="field" style="margin:0; grid-column:1 / -1;">
-          <label class="label" for="photo_room_id">Room</label>
-          <%= select_tag "photo[room_id]", "".html_safe, id: "photo_room_id", disabled: true,
-                data: { catalog_select_target: "room", action: "catalog-select#roomChanged" } %>
+          <label class="label" for="photo_room_type_id">Room</label>
+          <%# Global vocabulary — available even before a community is synced. %>
+          <%= select_tag "photo[room_type_id]",
+                options_from_collection_for_select(@room_types, :id, :name),
+                include_blank: "Any room", id: "photo_room_type_id" %>
         </div>
+        <% if @rooms.any? %>
+          <div class="field" style="margin:0; grid-column:1 / -1;">
+            <label class="label" for="photo_room_id">Specific room (optional)</label>
+            <%= select_tag "photo[room_id]", "".html_safe, id: "photo_room_id", disabled: true,
+                  data: { catalog_select_target: "room", action: "catalog-select#roomChanged" } %>
+          </div>
+        <% end %>
       </div>
     </fieldset>
 

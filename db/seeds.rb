@@ -12,6 +12,13 @@ user.role = :admin
 user.save!
 puts "Seed admin: #{user.email_address} / password"
 
+# ---- Room types ----------------------------------------------------------
+# The designer-facing room vocabulary. Seeded from config/room_types.yml so a
+# fresh database has a working room picker with no catalog sync required —
+# previously rooms only arrived from a models2 sync, leaving the picker empty.
+RoomType.load_vocabulary!
+puts "Seed room types: #{RoomType.count}"
+
 # ---- Communities & floorplans -------------------------------------------
 communities = {
   "1682" => "Bradbury at Blackridge",

@@ -1,0 +1,55 @@
+<% content_for :title, "Room types" %>
+
+<div style="margin-bottom:18px;">
+  <h1 class="page-title">Room types</h1>
+  <p class="text-mono-sm" style="margin-top:6px;">
+    The room list designers pick from when tagging. Edit the wording or ordering to match how
+    your team talks about rooms — changes apply immediately, no release needed.
+  </p>
+</div>
+
+<div class="panel card-pad" style="margin-bottom:20px;">
+  <span class="eyebrow">Add a room type</span>
+  <%= form_with model: @room_type, url: room_types_path, method: :post,
+        style: "display:flex; gap:10px; align-items:flex-end; margin-top:12px; flex-wrap:wrap;" do |f| %>
+    <div class="field" style="margin:0; flex:1; min-width:220px;">
+      <%= f.label :name, "Name", class: "label" %>
+      <%= f.text_field :name, class: "input", placeholder: "e.g. Screened Porch", required: true %>
+    </div>
+    <div class="field" style="margin:0; width:120px;">
+      <%= f.label :sort_order, "Order", class: "label" %>
+      <%= f.number_field :sort_order, class: "input",
+            value: (RoomType.maximum(:sort_order).to_i + 10) %>
+    </div>
+    <%= f.submit "Add", class: "btn btn--primary" %>
+  <% end %>
+</div>
+
+<div class="panel card-pad">
+  <span class="eyebrow"><%= pluralize(@room_types.size, "room type") %></span>
+
+  <div style="display:flex; flex-direction:column; gap:8px; margin-top:14px;">
+    <% @room_types.each do |room_type| %>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:8px 10px;
+                  border:1px solid var(--border); border-radius:10px;
+                  <%= "opacity:.55;" unless room_type.active? %>">
+        <%= form_with model: room_type, url: room_type_path(room_type), method: :patch,
+              style: "display:flex; gap:10px; align-items:center; flex:1; flex-wrap:wrap;" do |f| %>
+          <%= f.text_field :name, class: "input input--sm", style: "flex:1; min-width:180px;" %>
+          <%= f.number_field :sort_order, class: "input input--sm", style: "width:90px;",
+                "aria-label": "Display order" %>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;" class="text-mono-sm">
+            <%= f.check_box :active %> Shown
+          </label>
+          <%= f.submit "Save", class: "btn btn--secondary btn--sm" %>
+        <% end %>
+
+        <%# Deleting a type that's already in use would strip the room from
+            tagged photos, so the controller hides it instead. %>
+        <%= button_to "Remove", room_type_path(room_type), method: :delete,
+              class: "btn btn--ghost btn--sm",
+              form: { data: { turbo_confirm: "Remove “#{room_type.name}”? If it’s already in use it will be hidden instead of deleted." } } %>
+      </div>
+    <% end %>
+  </div>
+</div>

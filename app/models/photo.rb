@@ -9,6 +9,9 @@ class Photo < ApplicationRecord
   belongs_to :community, optional: true
   belongs_to :floorplan, optional: true
   belongs_to :room, optional: true
+  # The designer-facing room type — the primary control on the tagging screen.
+  # `room` above stays as an optional, more precise catalog refinement.
+  belongs_to :room_type, optional: true
   belongs_to :processed_by, class_name: "User", optional: true
 
   has_many :photo_skus, dependent: :destroy

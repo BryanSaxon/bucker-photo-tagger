@@ -56,12 +56,26 @@
                 { class: "select", data: { processing_target: "floorplan" } } %>
         </div>
         <div class="field" style="margin-bottom:0;">
-          <%= f.label :room_id, "Room", class: "label" %>
-          <%= f.select :room_id,
-                @rooms.map { |r| [r.to_s, r.id, { "data-community-id": r.community_id }] },
-                { include_blank: "Select a room…" },
-                { class: "select", data: { processing_target: "room" } } %>
+          <%= f.label :room_type_id, "Room", class: "label" %>
+          <%# The designer-facing vocabulary: global, always populated, and not
+              dependent on a community having been synced. %>
+          <%= f.collection_select :room_type_id, @room_types, :id, :name,
+                { include_blank: "Select a room…" }, { class: "select" } %>
         </div>
+
+        <%# The precise NewStart code stays available, but folded away — it's a
+            refinement, and it only exists once a community has been synced. %>
+        <% if @rooms.any? %>
+          <details style="margin-top:12px;" <%= "open" if @photo.room_id.present? %>>
+            <summary class="text-mono-sm" style="cursor:pointer;">Specific room (optional)</summary>
+            <div class="field" style="margin:10px 0 0;">
+              <%= f.select :room_id,
+                    @rooms.map { |r| [r.to_s, r.id, { "data-community-id": r.community_id }] },
+                    { include_blank: "No specific room" },
+                    { class: "select", data: { processing_target: "room" } } %>
+            </div>
+          </details>
+        <% end %>
       </div>
 
       <div class="panel card-pad">

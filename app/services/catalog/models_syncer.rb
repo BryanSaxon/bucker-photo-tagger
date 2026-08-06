@@ -68,21 +68,33 @@ module Catalog
     # room_code => room_desc across all of them.
     def sync_rooms
       now = Time.current
+      ids = Rooms::Classifier.ids_by_key
       seen = {}
       @models.each do |m|
         Array(m["rooms"]).each do |room|
           code = room["room_code"].presence
           next if code.nil? || seen.key?(code)
+          desc = room["room_desc"]
           seen[code] = { community_id: @community.id, room_code: code,
-                         room_desc: room["room_desc"], created_at: now, updated_at: now }
+                         room_desc: desc, created_at: now, updated_at: now,
+                         room_type_id: Rooms::Classifier.room_type_id_for(code, desc, ids: ids) }
         end
       end
       rows = seen.values
       return if rows.empty?
 
       Room.upsert_all(rows, unique_by: :index_rooms_on_community_id_and_room_code,
-        update_only: %i[room_desc])
-      @community.rooms.where.not(room_code: rows.map { |r| r[:room_code] }).delete_all
+        update_only: %i[room_desc room_type_id])
+
+      # Never prune a room that carries real work. photos.room_id is
+      # ON DELETE SET NULL, so an unguarded delete here silently unassigns the
+      # room from already-tagged photos whenever a payload omits or reshapes a
+      # code. (prune_models above guards floorplans the same way.)
+      @community.rooms
+        .where.not(room_code: rows.map { |r| r[:room_code] })
+        .where.missing(:photos)
+        .where.missing(:lot_selections)
+        .delete_all
     end
   end
 end

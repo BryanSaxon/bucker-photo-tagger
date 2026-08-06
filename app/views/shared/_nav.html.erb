@@ -11,6 +11,8 @@
       <%= link_to "SKU Library", skus_path,
             class: class_names("app-nav__link", "is-active": %w[skus sku_syncs].include?(controller_name)) %>
       <% if admin? %>
+        <%= link_to "Room Types", room_types_path,
+              class: class_names("app-nav__link", "is-active": controller_name == "room_types") %>
         <%= link_to "Users", users_path,
               class: class_names("app-nav__link", "is-active": controller_name == "users") %>
       <% end %>

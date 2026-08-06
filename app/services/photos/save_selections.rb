@@ -12,18 +12,21 @@ module Photos
     # sku_entries: array of { id:, pos_x:, pos_y:, variant_value: } hashes
     # (string keys ok). variant_value is the finish/colour/size chosen for that
     # product in this photo, blank when the product has no variants.
-    def initialize(photo:, community_id:, floorplan_id:, sku_entries:, user:, room_id: nil)
+    def initialize(photo:, community_id:, floorplan_id:, sku_entries:, user:,
+      room_id: nil, room_type_id: nil)
       @photo = photo
       @community_id = community_id.presence
       @floorplan_id = floorplan_id.presence
       @room_id = room_id.presence
+      @room_type_id = room_type_id.presence
       @sku_entries = Array(sku_entries)
       @user = user
     end
 
     def call
       Photo.transaction do
-        @photo.update!(community_id: resolved_community_id, floorplan_id: @floorplan_id, room_id: @room_id)
+        @photo.update!(community_id: resolved_community_id, floorplan_id: @floorplan_id,
+          room_id: @room_id, room_type_id: resolved_room_type_id)
         reconcile_skus
         @photo.mark_complete!(@user)
       end
@@ -41,6 +44,12 @@ module Photos
       @community_id ||
         (@floorplan_id && Floorplan.where(id: @floorplan_id).pick(:community_id)) ||
         (@room_id && Room.where(id: @room_id).pick(:community_id))
+    end
+
+    # A specific catalog room already knows its type, so choosing one is enough
+    # — the designer doesn't have to set both.
+    def resolved_room_type_id
+      @room_type_id || (@room_id && Room.where(id: @room_id).pick(:room_type_id))
     end
 
     # Rebuild the photo's SKU tags to exactly match the submitted selection,

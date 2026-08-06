@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_06_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_06_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -176,6 +176,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000001) do
     t.datetime "processed_at"
     t.bigint "processed_by_id"
     t.bigint "room_id"
+    t.bigint "room_type_id"
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["community_id"], name: "index_photos_on_community_id"
@@ -183,7 +184,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000001) do
     t.index ["name"], name: "index_photos_on_name"
     t.index ["processed_by_id"], name: "index_photos_on_processed_by_id"
     t.index ["room_id"], name: "index_photos_on_room_id"
+    t.index ["room_type_id"], name: "index_photos_on_room_type_id"
     t.index ["status"], name: "index_photos_on_status"
+  end
+
+  create_table "room_types", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.string "key", null: false
+    t.string "name", null: false
+    t.integer "sort_order", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["active", "sort_order"], name: "index_room_types_on_active_and_sort_order"
+    t.index ["key"], name: "index_room_types_on_key", unique: true
   end
 
   create_table "rooms", force: :cascade do |t|
@@ -191,9 +204,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000001) do
     t.datetime "created_at", null: false
     t.string "room_code", null: false
     t.string "room_desc"
+    t.bigint "room_type_id"
     t.datetime "updated_at", null: false
     t.index ["community_id", "room_code"], name: "index_rooms_on_community_id_and_room_code", unique: true
     t.index ["community_id"], name: "index_rooms_on_community_id"
+    t.index ["room_type_id"], name: "index_rooms_on_room_type_id"
   end
 
   create_table "sessions", force: :cascade do |t|
@@ -311,9 +326,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000001) do
   add_foreign_key "photo_skus", "skus"
   add_foreign_key "photos", "communities"
   add_foreign_key "photos", "floorplans"
+  add_foreign_key "photos", "room_types", on_delete: :nullify
   add_foreign_key "photos", "rooms", on_delete: :nullify
   add_foreign_key "photos", "users", column: "processed_by_id"
   add_foreign_key "rooms", "communities", on_delete: :cascade
+  add_foreign_key "rooms", "room_types", on_delete: :nullify
   add_foreign_key "sessions", "users"
   add_foreign_key "sku_images", "skus", on_delete: :cascade
   add_foreign_key "step_categories", "steps", on_delete: :cascade
