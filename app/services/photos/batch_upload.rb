@@ -13,12 +13,15 @@ module Photos
     end
 
     IMAGE_EXTENSIONS = %w[.jpg .jpeg .png .webp .gif].freeze
-    # Recognized only so the rejection can explain itself — see #unsupported_message.
-    # Decoding these needs libheif, which the Render native runtime doesn't provide.
+    # Accepted only where libvips can actually decode HEIF (see
+    # Photos::ImageSupport); Photos::PrepareImageJob converts them to JPEG on
+    # ingest. Where it can't, they are rejected with guidance rather than
+    # silently producing a broken thumbnail.
     HEIC_EXTENSIONS = %w[.heic .heif].freeze
     CONTENT_TYPES = {
       ".jpg" => "image/jpeg", ".jpeg" => "image/jpeg", ".png" => "image/png",
-      ".webp" => "image/webp", ".gif" => "image/gif"
+      ".webp" => "image/webp", ".gif" => "image/gif",
+      ".heic" => "image/heic", ".heif" => "image/heif"
     }.freeze
     MAX_ZIP_ENTRIES = 1000 # guard against zip bombs
 
@@ -66,7 +69,7 @@ module Photos
       # browser routes anything reporting image/* here — including HEIC, which
       # libvips can't decode in this deployment — so without this check a Photo
       # was created and its thumbnail then failed silently in the background.
-      unless image?(filename)
+      unless accepted?(filename)
         blob.purge_later # otherwise the rejected upload pays R2 storage forever
         errors << unsupported_message(filename)
         return
@@ -88,7 +91,7 @@ module Photos
     def ingest(file, context, created, errors)
       if zip?(file)
         expand_zip(file, context, created, errors)
-      elsif image?(file.original_filename)
+      elsif accepted?(file.original_filename)
         photo = build(io: file, filename: file.original_filename,
           content_type: file.content_type, context: context)
         record(photo, file.original_filename, created, errors)
@@ -97,10 +100,20 @@ module Photos
       end
     end
 
+    def heic?(filename)
+      HEIC_EXTENSIONS.include?(File.extname(filename.to_s).downcase)
+    end
+
+    # Acceptable either because we can render it directly, or because we can
+    # convert it on ingest.
+    def accepted?(filename)
+      image?(filename) || (heic?(filename) && ImageSupport.heic_available?)
+    end
+
     # HEIC/HEIF gets its own guidance: it's the common iPhone default and the
     # fix is a camera setting, not something the designer can guess at.
     def unsupported_message(filename)
-      if HEIC_EXTENSIONS.include?(File.extname(filename.to_s).downcase)
+      if heic?(filename)
         "#{filename}: HEIC photos aren’t supported yet — on iPhone, set " \
           "Settings → Camera → Formats → Most Compatible, or export as JPEG."
       else
@@ -115,7 +128,7 @@ module Photos
       count = 0
       Zip::File.open(file.tempfile.path) do |zip|
         zip.each do |entry|
-          next unless entry.file? && image?(entry.name) && !hidden?(entry.name)
+          next unless entry.file? && accepted?(entry.name) && !hidden?(entry.name)
 
           count += 1
           if count > MAX_ZIP_ENTRIES

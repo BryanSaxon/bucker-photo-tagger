@@ -18,11 +18,17 @@ class Photo < ApplicationRecord
   has_many :skus, through: :photo_skus
 
   # A resized :thumb variant for grid thumbnails — full-size images are far too
-  # heavy to list. preprocessed so new uploads generate it up front (existing
-  # photos generate it on first view, then it's cached).
+  # heavy to list.
+  #
+  # Deliberately NOT `preprocessed: true`: that enqueues the transform on
+  # attach, which races Photos::PrepareImageJob's HEIC conversion and generates
+  # the thumbnail from a blob that is about to be replaced. PrepareImageJob
+  # warms it instead, after any conversion.
   has_one_attached :image do |attachable|
-    attachable.variant :thumb, resize_to_limit: [ 600, 600 ], preprocessed: true
+    attachable.variant :thumb, resize_to_limit: [ 600, 600 ]
   end
+
+  after_create_commit { Photos::PrepareImageJob.perform_later(id) }
 
   accepts_nested_attributes_for :photo_skus, allow_destroy: true
 

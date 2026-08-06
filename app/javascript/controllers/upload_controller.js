@@ -26,42 +26,71 @@ export default class extends Controller {
     this.preview()
   }
 
+  // How many direct uploads run at once. A browser only opens ~6 connections
+  // per host anyway, and firing one per file at real batch sizes (150+) times
+  // them out against R2.
+  static CONCURRENCY = 4
+
   // Intercept submit: upload the image files directly to storage, replace them
   // with their signed ids, and let the form submit (with any zips) afterwards.
+  //
+  // Each file succeeds or fails on its own. The previous version awaited a
+  // single Promise.all over every file, so the first failure abandoned the rest
+  // and fell back to pushing EVERY file's bytes through the web process.
   async submit(event) {
     const files = Array.from(this.inputTarget.files || [])
-    const images = files.filter((f) => f.type.startsWith("image/"))
+    // Carry each file's original position so its preview card can be updated.
+    const images = files.map((file, index) => ({ file, index })).filter(({ file }) => this.isImage(file))
     if (images.length === 0) return // zips-only or nothing — normal submit
 
     event.preventDefault()
-    const others = files.filter((f) => !f.type.startsWith("image/"))
+    const others = files.filter((f) => !this.isImage(f))
+    const queue = [...images]
+    const failed = []
+    let done = 0
     this.setBusy(0, images.length)
 
-    try {
-      let done = 0
-      const signedIds = await Promise.all(
-        images.map((file) =>
-          this.uploadFile(file).then((id) => {
-            this.setBusy(++done, images.length)
-            return id
-          })
-        )
-      )
-      signedIds.forEach((id) => this.addSignedId(id))
-
-      // Leave only the non-image files (zips) in the input, then submit for real.
-      const dt = new DataTransfer()
-      others.forEach((f) => dt.items.add(f))
-      this.inputTarget.files = dt.files
-      this.element.requestSubmit()
-    } catch (e) {
-      // Direct upload failed (e.g. storage CORS not yet configured). Fall back
-      // to a normal multipart submit — slower, but uploads still work. The files
-      // are still in the input and no signed_ids were added, so .submit() (which
-      // doesn't re-fire this handler) sends the bytes through the server.
-      this.setBusy(null)
-      this.element.submit()
+    const worker = async () => {
+      while (queue.length) {
+        const { file, index } = queue.shift()
+        try {
+          this.addSignedId(await this.uploadFile(file))
+          this.markCard(index, "done")
+        } catch (e) {
+          failed.push(file)
+          this.markCard(index, "failed")
+        }
+        this.setBusy(++done, images.length)
+      }
     }
+
+    await Promise.all(
+      Array.from({ length: Math.min(this.constructor.CONCURRENCY, queue.length) }, worker)
+    )
+
+    // Only the files that actually failed fall back to a multipart submit.
+    const dt = new DataTransfer()
+    others.forEach((f) => dt.items.add(f))
+    failed.forEach((f) => dt.items.add(f))
+    this.inputTarget.files = dt.files
+    this.setBusy(null)
+    this.element.requestSubmit()
+  }
+
+  // Some browsers report an empty MIME type for .heic, which would route the
+  // file to the server as if it were a zip. Fall back to the extension.
+  isImage(file) {
+    return file.type.startsWith("image/") ||
+      /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name)
+  }
+
+  markCard(index, state) {
+    if (!this.hasPreviewTarget) return
+    const card = this.previewTarget.querySelector(`[data-file-index="${index}"]`)
+    if (!card) return
+    card.dataset.uploadState = state
+    const badge = card.querySelector("[data-role=upload-state]")
+    if (badge) badge.textContent = state === "done" ? "✓ Uploaded" : "✕ Failed — will retry"
   }
 
   uploadFile(file) {
@@ -90,12 +119,15 @@ export default class extends Controller {
     const files = Array.from(this.inputTarget.files || [])
     this.previewTarget.innerHTML = ""
 
-    files.forEach((file) => {
+    files.forEach((file, index) => {
       const isZip = file.type.includes("zip") || file.name.toLowerCase().endsWith(".zip")
-      if (!file.type.startsWith("image/") && !isZip) return
+      if (!this.isImage(file) && !isZip) return
 
       const card = document.createElement("div")
       card.className = "photo-card"
+      // Position in the input's file list, so per-file upload status can find
+      // this card even though unsupported files are skipped here.
+      card.dataset.fileIndex = index
       const thumb = document.createElement("span")
       thumb.className = "photo-card__thumb"
       if (isZip) {
@@ -112,7 +144,10 @@ export default class extends Controller {
       const body = document.createElement("div")
       body.className = "photo-card__body"
       const label = isZip ? `${file.name} (archive)` : file.name
-      body.innerHTML = `<span class="photo-card__name">${label}</span>`
+      body.innerHTML =
+        `<span class="photo-card__name"></span>` +
+        `<span class="photo-card__meta" data-role="upload-state"></span>`
+      body.querySelector(".photo-card__name").textContent = label
       card.appendChild(thumb)
       card.appendChild(body)
       this.previewTarget.appendChild(card)

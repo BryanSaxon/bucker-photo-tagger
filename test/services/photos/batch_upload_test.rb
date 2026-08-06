@@ -129,29 +129,55 @@ module Photos
       assert_equal community.id, result.created.first.community_id
     end
 
-    test "a direct-uploaded file of an unsupported type is rejected, not silently kept" do
-      heic = ActiveStorage::Blob.create_and_upload!(
-        io: file_fixture("sample.png").open, filename: "IMG_0042.HEIC", content_type: "image/heic"
+    # Pin the HEIC capability probe so both branches are exercised regardless of
+    # whether the machine running the suite has libheif.
+    def with_heic_decoding(available)
+      Photos::ImageSupport.instance_variable_set(:@heic_available, available)
+      yield
+    ensure
+      Photos::ImageSupport.reset!
+    end
+
+    def heic_blob(filename = "IMG_0042.HEIC")
+      ActiveStorage::Blob.create_and_upload!(
+        io: file_fixture("sample.heic").open, filename: filename, content_type: "image/heic"
       )
+    end
 
-      assert_no_difference -> { Photo.count } do
-        result = BatchUpload.call(signed_ids: [ heic.signed_id ])
+    # Where libvips can't decode HEIF, accepting the file would create a Photo
+    # whose thumbnail then fails invisibly — reject it with guidance instead.
+    test "a HEIC upload is rejected with guidance when decoding is unavailable" do
+      with_heic_decoding(false) do
+        blob = heic_blob
 
-        assert_equal 0, result.count
-        assert_not result.success?
-        assert_match(/HEIC photos aren’t supported yet/, result.errors.to_sentence)
-        assert_match(/Most Compatible/, result.errors.to_sentence)
+        assert_no_difference -> { Photo.count } do
+          result = BatchUpload.call(signed_ids: [ blob.signed_id ])
+
+          assert_equal 0, result.count
+          assert_not result.success?
+          assert_match(/HEIC photos aren’t supported yet/, result.errors.to_sentence)
+          assert_match(/Most Compatible/, result.errors.to_sentence)
+        end
+      end
+    end
+
+    test "a HEIC upload is accepted when decoding is available" do
+      with_heic_decoding(true) do
+        result = BatchUpload.call(signed_ids: [ heic_blob.signed_id ])
+
+        assert_equal 1, result.count
+        assert result.created.first.image.attached?
       end
     end
 
     test "a rejected direct upload purges its blob rather than paying storage for it" do
-      heic = ActiveStorage::Blob.create_and_upload!(
-        io: file_fixture("sample.png").open, filename: "IMG_0043.heic", content_type: "image/heic"
-      )
+      with_heic_decoding(false) do
+        blob = heic_blob("IMG_0043.heic")
 
-      perform_enqueued_jobs { BatchUpload.call(signed_ids: [ heic.signed_id ]) }
+        perform_enqueued_jobs { BatchUpload.call(signed_ids: [ blob.signed_id ]) }
 
-      assert_not ActiveStorage::Blob.exists?(heic.id)
+        assert_not ActiveStorage::Blob.exists?(blob.id)
+      end
     end
 
     test "a non-image direct upload gets the generic unsupported message" do
