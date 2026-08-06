@@ -10,9 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_06_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_06_000003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+  enable_extension "pg_trgm"
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -166,6 +167,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000002) do
     t.index ["photo_id"], name: "index_photo_skus_on_photo_id"
     t.index ["sku_id", "variant_value"], name: "index_photo_skus_on_sku_id_and_variant_value"
     t.index ["sku_id"], name: "index_photo_skus_on_sku_id"
+    t.index ["variant_value"], name: "index_photo_skus_on_variant_value_trgm", opclass: :gin_trgm_ops, using: :gin
   end
 
   create_table "photos", force: :cascade do |t|
@@ -182,6 +184,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000002) do
     t.index ["community_id"], name: "index_photos_on_community_id"
     t.index ["floorplan_id"], name: "index_photos_on_floorplan_id"
     t.index ["name"], name: "index_photos_on_name"
+    t.index ["name"], name: "index_photos_on_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["processed_by_id"], name: "index_photos_on_processed_by_id"
     t.index ["room_id"], name: "index_photos_on_room_id"
     t.index ["room_type_id"], name: "index_photos_on_room_type_id"
@@ -266,8 +269,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000002) do
     t.string "source_modified_at"
     t.string "subcategory_code"
     t.datetime "updated_at", null: false
+    t.index ["attribute1"], name: "index_skus_on_attribute1_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["category_code"], name: "index_skus_on_category_code"
     t.index ["product_code"], name: "index_skus_on_product_code", unique: true
+    t.index ["product_code"], name: "index_skus_on_product_code_trgm", opclass: :gin_trgm_ops, using: :gin
+    t.index ["short_description"], name: "index_skus_on_short_description_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["subcategory_code"], name: "index_skus_on_subcategory_code"
   end
 

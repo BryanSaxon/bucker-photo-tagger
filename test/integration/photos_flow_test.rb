@@ -191,6 +191,45 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
     assert_equal elsewhere.product_code, "ZZZ"
   end
 
+  # ---- Search tabs ----
+
+  test "tab counts reflect the active search rather than library totals" do
+    create_photo(name: "kitchen-one")
+    create_photo(name: "kitchen-two", status: :complete)
+    create_photo(name: "unrelated-bathroom", status: :complete)
+    sign_in_as(@user)
+
+    get photos_path(q: "kitchen")
+
+    assert_response :success
+    # 1 unprocessed and 1 completed match — not the library totals of 1 and 2.
+    assert_select ".segmented__item", text: /Needs processing\s*1/
+    assert_select ".segmented__item", text: /Completed\s*1/
+  end
+
+  test "an empty search offers the matches waiting on the other tab" do
+    create_photo(name: "only-completed-match", status: :complete)
+    sign_in_as(@user)
+
+    get photos_path(q: "only-completed")
+
+    assert_response :success
+    assert_match "No unprocessed photos match", @response.body
+    # Without this link the photo looks like it isn't in the system at all.
+    assert_select ".empty-state a[href=?]",
+      photos_path(q: "only-completed", status: "complete"), text: "1 match"
+  end
+
+  test "no cross-tab link is offered when nothing matches anywhere" do
+    create_photo(name: "kitchen")
+    sign_in_as(@user)
+
+    get photos_path(q: "nothing-matches-this")
+
+    assert_response :success
+    assert_select ".empty-state a", count: 0
+  end
+
   # ---- Room types ----
 
   test "saving persists the chosen room type" do

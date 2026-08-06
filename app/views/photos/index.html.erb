@@ -71,7 +71,18 @@
   <div class="card empty-state">
     <div class="empty-state__icon">🏷️</div>
     <% if @query.present? %>
-      <p>No photos match “<%= @query %>”.</p>
+      <p>No <%= @show_completed ? "completed" : "unprocessed" %> photos match “<%= @query %>”.</p>
+      <%# Without this, a completed photo searched for from this tab looks like
+          it isn't in the system at all. %>
+      <% elsewhere = @show_completed ? @unprocessed_count : @complete_count %>
+      <% if elsewhere.positive? %>
+        <p style="margin-top:14px;">
+          <%= link_to pluralize(elsewhere, "match"),
+                photos_path(q: @query, status: (@show_completed ? nil : "complete")),
+                class: "btn btn--secondary btn--sm" %>
+          in <%= @show_completed ? "Needs processing" : "Completed" %>.
+        </p>
+      <% end %>
     <% elsif @show_completed %>
       <p>No completed photos yet.</p>
     <% else %>

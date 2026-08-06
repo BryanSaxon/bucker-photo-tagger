@@ -9,15 +9,19 @@ class PhotosController < ApplicationController
     @missing_variants = params[:filter] == "missing_variants"
     @query = params[:q].to_s.strip
 
-    scope = @show_completed ? Photo.complete : Photo.unprocessed
-    scope = scope.missing_variants if @missing_variants
-    scope = scope.search(@query).recent.with_attached_image
-    @pagy, @photos = pagy(scope)
+    # Count over the SEARCHED set, not the whole library. Previously the tabs
+    # showed unfiltered totals, so a search could read "Completed 812" above an
+    # empty grid — and a completed photo was unreachable from this tab, which
+    # looks like the photo isn't in the system at all.
+    matched = Photo.search(@query)
+    counts = matched.group(:status).count
+    @unprocessed_count = counts["unprocessed"].to_i
+    @complete_count = counts["complete"].to_i
+    @missing_variants_count = matched.complete.missing_variants.count
 
-    @unprocessed_count = Photo.unprocessed.count
-    @complete_count = Photo.complete.count
-    # Completed photos still missing a finish — the re-visit queue.
-    @missing_variants_count = Photo.complete.missing_variants.count
+    scope = @show_completed ? matched.complete : matched.unprocessed
+    scope = scope.missing_variants if @missing_variants
+    @pagy, @photos = pagy(scope.recent.with_attached_image)
   end
 
   def new
