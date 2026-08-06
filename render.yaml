@@ -1,17 +1,25 @@
 # Render blueprint: web + worker + Postgres.
 # The only secret to set manually in Render is RAILS_MASTER_KEY (sync: false).
 # Everything else (R2, SendGrid, secret_key_base) lives in Rails credentials.
+#
+# Both services run the Docker runtime rather than Render's native Ruby one.
+# The native runtime gives no root and no apt, so libheif/libde265 can't be
+# installed — meaning iPhone HEIC uploads could never be decoded there. The
+# Dockerfile already existed and was simply unused by Render; it now installs
+# those libraries. Photos::ImageSupport probes at boot, so if an image ever
+# ships without them HEIC is rejected with guidance instead of failing
+# silently.
 services:
   - type: web
     name: photo-tagger
-    runtime: ruby
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     # Uploads buffer photo bytes on their way to R2; standard gives headroom so
     # large batches/zips don't approach the memory ceiling.
     plan: standard
-    buildCommand: "./bin/render-build.sh"
     # DB setup runs once here (web only) so it never races with the worker.
     preDeployCommand: "./bin/render-migrate.sh"
-    startCommand: "bundle exec puma -C config/puma.rb"
     healthCheckPath: /up
     envVars:
       - key: RAILS_ENV
@@ -22,6 +30,10 @@ services:
         value: "true"
       - key: SOLID_QUEUE_IN_PUMA
         value: "false"
+      # bin/render-migrate.sh (preDeployCommand) owns schema changes; the image
+      # entrypoint must not also run db:prepare on every boot.
+      - key: SKIP_DB_PREPARE
+        value: "true"
       - key: RAILS_MASTER_KEY
         sync: false
       - key: DATABASE_URL
@@ -31,10 +43,13 @@ services:
 
   - type: worker
     name: photo-tagger-worker
-    runtime: ruby
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # HEIC conversion decodes a 12 MP frame to ~48 MB. libvips streams, so this
+    # is fine one at a time — measure before widening the queue's concurrency.
     plan: starter
-    buildCommand: "./bin/render-build.sh"
-    startCommand: "bundle exec rails solid_queue:start"
+    dockerCommand: "bundle exec rails solid_queue:start"
     envVars:
       - key: RAILS_ENV
         value: production

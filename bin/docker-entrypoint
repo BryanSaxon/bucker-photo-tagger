@@ -1,7 +1,11 @@
 #!/bin/bash -e
 
-# If running the rails server then create or migrate existing database
-if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
+# If running the rails server then create or migrate existing database.
+#
+# Skipped on Render, where bin/render-migrate.sh owns this as the web service's
+# preDeployCommand — running it here too would duplicate the work on every boot
+# and could race across instances. Kept for standalone `docker run`.
+if [ -z "${SKIP_DB_PREPARE}" ] && [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
   ./bin/rails db:prepare
 fi
 
