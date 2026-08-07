@@ -10,9 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_24_044533) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_06_000006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+  enable_extension "pg_trgm"
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -33,6 +34,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_044533) do
     t.string "key", null: false
     t.text "metadata"
     t.string "service_name", null: false
+    t.index ["checksum", "byte_size"], name: "index_active_storage_blobs_on_checksum_and_byte_size"
+    t.index ["filename", "byte_size"], name: "index_active_storage_blobs_on_filename_and_byte_size"
     t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
   end
 
@@ -161,27 +164,46 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_044533) do
     t.float "pos_y"
     t.bigint "sku_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["photo_id", "sku_id"], name: "index_photo_skus_on_photo_id_and_sku_id", unique: true
+    t.string "variant_value", default: "", null: false
+    t.index ["photo_id", "sku_id", "variant_value"], name: "index_photo_skus_on_photo_sku_variant", unique: true
     t.index ["photo_id"], name: "index_photo_skus_on_photo_id"
+    t.index ["sku_id", "variant_value"], name: "index_photo_skus_on_sku_id_and_variant_value"
     t.index ["sku_id"], name: "index_photo_skus_on_sku_id"
+    t.index ["variant_value"], name: "index_photo_skus_on_variant_value_trgm", opclass: :gin_trgm_ops, using: :gin
   end
 
   create_table "photos", force: :cascade do |t|
     t.bigint "community_id"
     t.datetime "created_at", null: false
+    t.bigint "duplicate_of_id"
     t.bigint "floorplan_id"
     t.string "name", null: false
     t.datetime "processed_at"
     t.bigint "processed_by_id"
     t.bigint "room_id"
+    t.bigint "room_type_id"
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["community_id"], name: "index_photos_on_community_id"
+    t.index ["duplicate_of_id"], name: "index_photos_on_duplicate_of_id"
     t.index ["floorplan_id"], name: "index_photos_on_floorplan_id"
     t.index ["name"], name: "index_photos_on_name"
+    t.index ["name"], name: "index_photos_on_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["processed_by_id"], name: "index_photos_on_processed_by_id"
     t.index ["room_id"], name: "index_photos_on_room_id"
+    t.index ["room_type_id"], name: "index_photos_on_room_type_id"
     t.index ["status"], name: "index_photos_on_status"
+  end
+
+  create_table "room_types", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.string "key", null: false
+    t.string "name", null: false
+    t.integer "sort_order", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["active", "sort_order"], name: "index_room_types_on_active_and_sort_order"
+    t.index ["key"], name: "index_room_types_on_key", unique: true
   end
 
   create_table "rooms", force: :cascade do |t|
@@ -189,9 +211,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_044533) do
     t.datetime "created_at", null: false
     t.string "room_code", null: false
     t.string "room_desc"
+    t.bigint "room_type_id"
     t.datetime "updated_at", null: false
     t.index ["community_id", "room_code"], name: "index_rooms_on_community_id_and_room_code", unique: true
     t.index ["community_id"], name: "index_rooms_on_community_id"
+    t.index ["room_type_id"], name: "index_rooms_on_room_type_id"
   end
 
   create_table "sessions", force: :cascade do |t|
@@ -238,6 +262,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_044533) do
     t.text "attribute1"
     t.string "attribute1_desc"
     t.string "category_code"
+    t.string "category_name"
     t.datetime "created_at", null: false
     t.string "image_file_id"
     t.string "image_filename"
@@ -245,12 +270,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_044533) do
     t.string "image_mimetype"
     t.integer "images_count", default: 0, null: false
     t.string "product_code", null: false
+    t.boolean "sellable", default: true, null: false
     t.string "short_description"
     t.string "source_modified_at"
     t.string "subcategory_code"
+    t.string "subcategory_name"
     t.datetime "updated_at", null: false
+    t.index ["attribute1"], name: "index_skus_on_attribute1_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["category_code"], name: "index_skus_on_category_code"
     t.index ["product_code"], name: "index_skus_on_product_code", unique: true
+    t.index ["product_code"], name: "index_skus_on_product_code_trgm", opclass: :gin_trgm_ops, using: :gin
+    t.index ["sellable"], name: "index_skus_on_sellable"
+    t.index ["short_description"], name: "index_skus_on_short_description_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["subcategory_code"], name: "index_skus_on_subcategory_code"
   end
 
@@ -309,9 +340,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_044533) do
   add_foreign_key "photo_skus", "skus"
   add_foreign_key "photos", "communities"
   add_foreign_key "photos", "floorplans"
+  add_foreign_key "photos", "photos", column: "duplicate_of_id", on_delete: :nullify
+  add_foreign_key "photos", "room_types", on_delete: :nullify
   add_foreign_key "photos", "rooms", on_delete: :nullify
   add_foreign_key "photos", "users", column: "processed_by_id"
   add_foreign_key "rooms", "communities", on_delete: :cascade
+  add_foreign_key "rooms", "room_types", on_delete: :nullify
   add_foreign_key "sessions", "users"
   add_foreign_key "sku_images", "skus", on_delete: :cascade
   add_foreign_key "step_categories", "steps", on_delete: :cascade

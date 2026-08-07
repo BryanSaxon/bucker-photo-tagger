@@ -32,12 +32,27 @@
     <%# Variants %>
     <% if @sku.attribute_choices.any? %>
       <div class="panel card-pad">
-        <span class="eyebrow"><%= @sku.attribute1_desc.presence&.chomp("**") || "Variants" %></span>
+        <span class="eyebrow"><%= @sku.variant_label || "Variants" %></span>
+        <%# Counts answer "where is the matte black one installed?", which is
+            the point of recording a finish at all. %>
         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;">
           <% @sku.attribute_choices.each do |choice| %>
-            <span class="chip" style="padding:6px 12px;"><%= choice %></span>
+            <% tagged = @tagged_variants[choice].to_i %>
+            <span class="chip" style="padding:6px 12px;">
+              <%= choice %>
+              <% if tagged.positive? %>
+                <span class="segmented__count" style="margin-left:6px;"><%= tagged %></span>
+              <% end %>
+            </span>
           <% end %>
         </div>
+        <% uncatalogued = @tagged_variants.keys - @sku.attribute_choices %>
+        <% if uncatalogued.any? %>
+          <p class="text-mono-sm" style="margin-top:10px;">
+            Also tagged, not listed by the catalog:
+            <%= uncatalogued.map { |value| "#{value} (#{@tagged_variants[value]})" }.to_sentence %>
+          </p>
+        <% end %>
       </div>
     <% end %>
 

@@ -271,6 +271,18 @@ h2.section-title { font: 600 18px/1.2 "Sora", sans-serif; letter-spacing: -.01em
 .selected-sku__code { font: 600 11px "IBM Plex Mono", monospace; color: var(--gold-dark); }
 .selected-sku__desc { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* The variant picker wraps onto its own line so the code/description above it
+   keep their full width. */
+.selected-sku { flex-wrap: wrap; }
+.selected-sku__main { display: flex; align-items: center; gap: 10px; flex: 1 1 100%; min-width: 0; }
+.selected-sku__variant { display: flex; gap: 6px; flex: 1 1 100%; }
+/* When "Other…" reveals the free-text field the two share the row, so the
+   select needs a floor or it collapses to an unreadable sliver. */
+.selected-sku__variant .select--sm { flex: 1 1 auto; min-width: 8.5rem; }
+.selected-sku__variant .input--sm { flex: 1 1 auto; min-width: 0; }
+.select--sm, .input--sm { padding: 6px 9px; font-size: 12.5px; border-radius: 8px; }
+.sku-result__variant { font: 500 10px "IBM Plex Mono", monospace; color: var(--gold-dark); }
+
 /* Pin markers on the photo */
 .pin-marker {
   position: absolute; transform: translate(-50%, -50%);
@@ -305,3 +317,16 @@ h2.section-title { font: 600 18px/1.2 "Sora", sans-serif; letter-spacing: -.01em
 .stack { display: flex; flex-direction: column; }
 .muted { color: var(--muted); }
 .text-mono-sm { font: 500 12px "IBM Plex Mono", monospace; color: var(--muted); }
+
+/* Drag-to-reorder rows */
+.sortable-handle {
+  cursor: grab; color: var(--muted-2); font-size: 15px; line-height: 1;
+  user-select: none; padding-right: 2px;
+}
+.sortable-handle:active { cursor: grabbing; }
+tr[draggable="true"].is-dragging { opacity: .45; background: rgba(245, 166, 35, .08); }
+tr[draggable="true"]:hover .sortable-handle { color: var(--text); }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}

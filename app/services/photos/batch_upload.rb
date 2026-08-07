@@ -7,26 +7,40 @@ module Photos
   # community, and an inconsistent combination is rejected up front so no photos
   # are created.
   class BatchUpload
-    Result = Struct.new(:created, :errors, keyword_init: true) do
+    Result = Struct.new(:created, :updated, :errors, keyword_init: true) do
+      def initialize(created: [], updated: [], errors: [])
+        super
+      end
+
       def success? = errors.empty?
       def count = created.size
+      def updated_count = updated.size
     end
 
     IMAGE_EXTENSIONS = %w[.jpg .jpeg .png .webp .gif].freeze
+    # Accepted only where libvips can actually decode HEIF (see
+    # Photos::ImageSupport); Photos::PrepareImageJob converts them to JPEG on
+    # ingest. Where it can't, they are rejected with guidance rather than
+    # silently producing a broken thumbnail.
+    HEIC_EXTENSIONS = %w[.heic .heif].freeze
     CONTENT_TYPES = {
       ".jpg" => "image/jpeg", ".jpeg" => "image/jpeg", ".png" => "image/png",
-      ".webp" => "image/webp", ".gif" => "image/gif"
+      ".webp" => "image/webp", ".gif" => "image/gif",
+      ".heic" => "image/heic", ".heif" => "image/heif"
     }.freeze
     MAX_ZIP_ENTRIES = 1000 # guard against zip bombs
 
     def self.call(...) = new(...).call
 
-    def initialize(files: nil, signed_ids: nil, community_id: nil, floorplan_id: nil, room_id: nil)
+    def initialize(files: nil, signed_ids: nil, community_id: nil, floorplan_id: nil,
+      room_id: nil, room_type_id: nil, update_existing: true)
       @files = Array(files).reject(&:blank?)
       @signed_ids = Array(signed_ids).reject(&:blank?)
       @community_id = community_id.presence
       @floorplan_id = floorplan_id.presence
       @room_id = room_id.presence
+      @room_type_id = room_type_id.presence
+      @update_existing = update_existing
     end
 
     def call
@@ -37,17 +51,20 @@ module Photos
       context = resolve_context
       return context if context.is_a?(Result)
 
+      @context_cache = context
+
       created = []
       errors = []
+      @updated = []
       # Images uploaded straight to storage arrive as signed blob ids; zips (and
       # any non-direct-upload files) still stream through here.
       @signed_ids.each { |signed_id| ingest_signed_id(signed_id, context, created, errors) }
       @files.each { |file| ingest(file, context, created, errors) }
 
-      if created.empty? && errors.empty?
+      if created.empty? && @updated.empty? && errors.empty?
         errors << "No images were found in the uploaded file(s)."
       end
-      Result.new(created: created, errors: errors)
+      Result.new(created: created, updated: @updated, errors: errors)
     end
 
     private
@@ -55,14 +72,27 @@ module Photos
     # Attach an already-uploaded blob (no bytes pass through the server).
     def ingest_signed_id(signed_id, context, created, errors)
       blob = ActiveStorage::Blob.find_signed!(signed_id)
+      filename = blob.filename.to_s
+
+      # The direct-upload path must apply the same allowlist #ingest does. The
+      # browser routes anything reporting image/* here — including HEIC, which
+      # libvips can't decode in this deployment — so without this check a Photo
+      # was created and its thumbnail then failed silently in the background.
+      unless accepted?(filename)
+        blob.purge_later # otherwise the rejected upload pays R2 storage forever
+        errors << unsupported_message(filename)
+        return
+      end
+
       photo = Photo.new(
-        name: File.basename(blob.filename.to_s, ".*").presence || "photo",
+        name: File.basename(filename, ".*").presence || "photo",
         community_id: context[:community_id],
         floorplan_id: context[:floorplan_id],
-        room_id: context[:room_id]
+        room_id: context[:room_id],
+        room_type_id: context[:room_type_id]
       )
       photo.image.attach(blob)
-      record(photo, blob.filename.to_s, created, errors)
+      record(photo, filename, created, errors)
     rescue StandardError => e
       errors << "An uploaded file could not be attached (#{e.class})."
     end
@@ -70,12 +100,33 @@ module Photos
     def ingest(file, context, created, errors)
       if zip?(file)
         expand_zip(file, context, created, errors)
-      elsif image?(file.original_filename)
+      elsif accepted?(file.original_filename)
         photo = build(io: file, filename: file.original_filename,
           content_type: file.content_type, context: context)
         record(photo, file.original_filename, created, errors)
       else
-        errors << "#{file.original_filename}: unsupported file type (skipped)."
+        errors << unsupported_message(file.original_filename)
+      end
+    end
+
+    def heic?(filename)
+      HEIC_EXTENSIONS.include?(File.extname(filename.to_s).downcase)
+    end
+
+    # Acceptable either because we can render it directly, or because we can
+    # convert it on ingest.
+    def accepted?(filename)
+      image?(filename) || (heic?(filename) && ImageSupport.heic_available?)
+    end
+
+    # HEIC/HEIF gets its own guidance: it's the common iPhone default and the
+    # fix is a camera setting, not something the designer can guess at.
+    def unsupported_message(filename)
+      if heic?(filename)
+        "#{filename}: HEIC photos aren’t supported yet — on iPhone, set " \
+          "Settings → Camera → Formats → Most Compatible, or export as JPEG."
+      else
+        "#{filename}: unsupported file type (skipped)."
       end
     end
 
@@ -86,7 +137,7 @@ module Photos
       count = 0
       Zip::File.open(file.tempfile.path) do |zip|
         zip.each do |entry|
-          next unless entry.file? && image?(entry.name) && !hidden?(entry.name)
+          next unless entry.file? && accepted?(entry.name) && !hidden?(entry.name)
 
           count += 1
           if count > MAX_ZIP_ENTRIES
@@ -117,18 +168,48 @@ module Photos
         name: File.basename(filename.to_s, ".*").presence || "photo",
         community_id: context[:community_id],
         floorplan_id: context[:floorplan_id],
-        room_id: context[:room_id]
+        room_id: context[:room_id],
+        room_type_id: context[:room_type_id]
       )
       photo.image.attach(io: io, filename: filename, content_type: content_type)
       photo
     end
 
+    # A re-upload of a photo already in the library is not a mistake to warn
+    # about: designers re-upload from phone albums that are organised by
+    # community and floorplan precisely so that placement comes with them. So
+    # carry the new placement onto the existing photo rather than duplicating
+    # it, and never touch its tags, pins or processed state.
     def record(photo, label, created, errors)
+      existing = @update_existing ? DuplicateFinder.for_blob(photo.image.blob) : nil
+
+      if existing
+        apply_placement(existing)
+        # Only a direct upload has persisted its blob already; one attached to
+        # an unsaved record has no id yet and nothing to purge.
+        photo.image.blob.purge_later if photo.image.blob&.persisted?
+        @updated << existing
+        return
+      end
+
       if photo.save
         created << photo
       else
         errors << "#{label}: #{photo.errors.full_messages.to_sentence}"
       end
+    end
+
+    # Only ever fills in or improves placement. A re-upload with nothing chosen
+    # on the form must not blank out what the photo already had.
+    def apply_placement(photo)
+      changes = {
+        community_id: @context_cache[:community_id],
+        floorplan_id: @context_cache[:floorplan_id],
+        room_id: @context_cache[:room_id],
+        room_type_id: @context_cache[:room_type_id]
+      }.compact
+
+      photo.update(changes) if changes.any?
     end
 
     # Normalize the trio: derive community from a lone floorplan/room and reject
@@ -145,7 +226,10 @@ module Photos
         return Result.new(created: [], errors: [ "The selected room is not in the selected community." ])
       end
 
-      { community_id: community_id, floorplan_id: floorplan&.id, room_id: room&.id }
+      # A chosen catalog room already implies its designer-facing type.
+      room_type_id = @room_type_id || room&.room_type_id
+      { community_id: community_id, floorplan_id: floorplan&.id, room_id: room&.id,
+        room_type_id: room_type_id }
     end
 
     def zip?(file)

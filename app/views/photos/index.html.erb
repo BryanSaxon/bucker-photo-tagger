@@ -17,8 +17,17 @@
       Needs processing <span class="segmented__count"><%= @unprocessed_count %></span>
     <% end %>
     <%= link_to photos_path(status: "complete", q: @query.presence),
-          class: class_names("segmented__item", "is-active": @show_completed) do %>
+          class: class_names("segmented__item", "is-active": @show_completed && !@missing_variants) do %>
       Completed <span class="segmented__count"><%= @complete_count %></span>
+    <% end %>
+    <%# Photos tagged before finishes could be recorded. Adding the finish here
+        keeps the hand-placed pins, unlike re-tagging from scratch. %>
+    <% if @missing_variants_count.positive? %>
+      <%= link_to photos_path(status: "complete", filter: "missing_variants", q: @query.presence),
+            class: class_names("segmented__item", "is-active": @missing_variants),
+            title: "Completed photos where a product with finish options has no finish recorded" do %>
+        Needs a finish <span class="segmented__count"><%= @missing_variants_count %></span>
+      <% end %>
     <% end %>
   </div>
 
@@ -62,7 +71,18 @@
   <div class="card empty-state">
     <div class="empty-state__icon">🏷️</div>
     <% if @query.present? %>
-      <p>No photos match “<%= @query %>”.</p>
+      <p>No <%= @show_completed ? "completed" : "unprocessed" %> photos match “<%= @query %>”.</p>
+      <%# Without this, a completed photo searched for from this tab looks like
+          it isn't in the system at all. %>
+      <% elsewhere = @show_completed ? @unprocessed_count : @complete_count %>
+      <% if elsewhere.positive? %>
+        <p style="margin-top:14px;">
+          <%= link_to pluralize(elsewhere, "match"),
+                photos_path(q: @query, status: (@show_completed ? nil : "complete")),
+                class: "btn btn--secondary btn--sm" %>
+          in <%= @show_completed ? "Needs processing" : "Completed" %>.
+        </p>
+      <% end %>
     <% elsif @show_completed %>
       <p>No completed photos yet.</p>
     <% else %>

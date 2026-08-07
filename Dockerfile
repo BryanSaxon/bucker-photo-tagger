@@ -14,9 +14,17 @@ FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
 # Rails app lives here
 WORKDIR /rails
 
-# Install base packages
+# Install base packages.
+#
+# libheif1 alone is not enough for iPhone photos: it provides the HEIF
+# container, while the frames inside are HEVC. Without a decoder (libde265)
+# libvips advertises HEIF support and then fails on every real file — the
+# classic trap. Debian trixie moves the decoder into a plugin package, so try
+# that too and let it pass if this base doesn't have it.
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl libjemalloc2 libvips postgresql-client && \
+    apt-get install --no-install-recommends -y \
+      curl libjemalloc2 libvips postgresql-client libheif1 libde265-0 && \
+    (apt-get install --no-install-recommends -y libheif-plugin-libde265 || true) && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 

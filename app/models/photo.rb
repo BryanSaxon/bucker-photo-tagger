@@ -9,17 +9,30 @@ class Photo < ApplicationRecord
   belongs_to :community, optional: true
   belongs_to :floorplan, optional: true
   belongs_to :room, optional: true
+  # The designer-facing room type — the primary control on the tagging screen.
+  # `room` above stays as an optional, more precise catalog refinement.
+  belongs_to :room_type, optional: true
   belongs_to :processed_by, class_name: "User", optional: true
+  # Set only when someone deliberately keeps a second copy of an image already
+  # in the library; the default is to fold a re-upload into the original.
+  belongs_to :duplicate_of, class_name: "Photo", optional: true
+  has_many :duplicates, class_name: "Photo", foreign_key: :duplicate_of_id, dependent: :nullify
 
   has_many :photo_skus, dependent: :destroy
   has_many :skus, through: :photo_skus
 
   # A resized :thumb variant for grid thumbnails — full-size images are far too
-  # heavy to list. preprocessed so new uploads generate it up front (existing
-  # photos generate it on first view, then it's cached).
+  # heavy to list.
+  #
+  # Deliberately NOT `preprocessed: true`: that enqueues the transform on
+  # attach, which races Photos::PrepareImageJob's HEIC conversion and generates
+  # the thumbnail from a blob that is about to be replaced. PrepareImageJob
+  # warms it instead, after any conversion.
   has_one_attached :image do |attachable|
-    attachable.variant :thumb, resize_to_limit: [ 600, 600 ], preprocessed: true
+    attachable.variant :thumb, resize_to_limit: [ 600, 600 ]
   end
+
+  after_create_commit { Photos::PrepareImageJob.perform_later(id) }
 
   accepts_nested_attributes_for :photo_skus, allow_destroy: true
 
@@ -31,6 +44,17 @@ class Photo < ApplicationRecord
   scope :search, ->(query) {
     term = query.to_s.strip
     term.present? ? where("name ILIKE ?", "%#{sanitize_sql_like(term)}%") : all
+  }
+
+  # Photos carrying a tag with no finish recorded against a product that offers
+  # choices — the re-visit queue for work tagged before variants existed.
+  # Adding the missing finish keeps the hand-placed pins, unlike re-tagging.
+  scope :missing_variants, -> {
+    where(
+      "EXISTS (SELECT 1 FROM photo_skus ps JOIN skus s ON s.id = ps.sku_id " \
+      "WHERE ps.photo_id = photos.id AND ps.variant_value = '' " \
+      "AND s.attribute1 IS NOT NULL AND s.attribute1 <> '')"
+    )
   }
 
   # Persist the processor's selections and mark the photo complete.

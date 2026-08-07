@@ -31,6 +31,8 @@ module Catalog
       product_count = ProductsSyncer.call(client: @client)
       CommunitiesSyncer.call(client: @client)
       communities.each { |community| sync_community(community) }
+      # Last: reads what the community syncers just wrote.
+      SkuEnricher.call(fetch_selections: @fetch_selections)
 
       @sku_sync.mark_completed!(product_count)
       @sku_sync

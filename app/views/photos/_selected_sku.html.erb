@@ -1,16 +1,66 @@
-<%# Mirrors the markup produced by processing_controller#rowHtml — keep in sync. %>
-<div class="selected-sku <%= 'is-pinned' if photo_sku.pinned? %>"
+<%# The single source of truth for a selected-SKU row. Rendered both from
+    photos#show (persisted tags) and photos#selected_sku_row (newly added), so
+    there is no duplicate copy of this markup in JavaScript. %>
+<% pinned = pos_x.present? && pos_y.present? %>
+<%# Union across the line items this row stands for: members usually agree, but
+    where they differ the union is what the designer can actually have. %>
+<% choices = sku.grouped_attribute_choices %>
+<% custom = variant_value.present? && choices.exclude?(variant_value) %>
+<% single = choices.one? && !custom %>
+<div class="selected-sku <%= "is-pinned" if pinned %>"
      data-processing-target="selectedItem"
-     data-sku-id="<%= photo_sku.sku_id %>"
-     data-code="<%= photo_sku.sku.product_code %>"
-     data-desc="<%= photo_sku.sku.display_name %>">
-  <input type="hidden" name="photo[skus][][id]" value="<%= photo_sku.sku_id %>">
-  <input type="hidden" name="photo[skus][][pos_x]" value="<%= photo_sku.pos_x %>" data-role="pos_x">
-  <input type="hidden" name="photo[skus][][pos_y]" value="<%= photo_sku.pos_y %>" data-role="pos_y">
-  <span class="selected-sku__code"><%= photo_sku.sku.product_code %></span>
-  <span class="selected-sku__desc"><%= photo_sku.sku.display_name %></span>
+     data-sku-id="<%= sku.id %>"
+     data-variant="<%= variant_value %>"
+     data-row-key="<%= "#{sku.id}::#{variant_value}" %>"
+     data-code="<%= sku.product_code %>"
+     data-desc="<%= sku.display_name %>">
+  <input type="hidden" name="photo[skus][][id]" value="<%= sku.id %>">
+  <input type="hidden" name="photo[skus][][pos_x]" value="<%= pos_x %>" data-role="pos_x">
+  <input type="hidden" name="photo[skus][][pos_y]" value="<%= pos_y %>" data-role="pos_y">
+
+  <div class="selected-sku__main">
+    <span class="selected-sku__code"><%= sku.product_code %></span>
+    <span class="selected-sku__desc"><%= sku.display_name %></span>
+  </div>
+
+  <% if single %>
+    <%# One choice is not a choice. Record it and state it, rather than asking
+        the designer to pick from a dropdown of one. %>
+    <input type="hidden" name="photo[skus][][variant_value]" value="<%= choices.first %>">
+    <span class="selected-sku__fixed text-mono-sm">
+      <%= sku.variant_label || "Variant" %>: <strong><%= choices.first %></strong>
+    </span>
+  <% elsif choices.any? %>
+    <div class="selected-sku__variant" data-role="variant">
+      <select class="select select--sm" data-role="variant-select"
+              name="<%= "photo[skus][][variant_value]" unless custom %>"
+              data-action="processing#variantChanged"
+              aria-label="<%= sku.variant_label || "Variant" %>">
+        <option value="">Add <%= (sku.variant_label || "variant").downcase %>…</option>
+        <% choices.each do |choice| %>
+          <option value="<%= choice %>" <%= "selected" if choice == variant_value %>><%= choice %></option>
+        <% end %>
+        <%# The catalog lists choices for only some products and can never
+            describe a finish it doesn't carry, so free text stays available. %>
+        <option value="__other__" <%= "selected" if custom %>>Other…</option>
+      </select>
+      <input type="text" class="input input--sm" data-role="variant-other"
+             name="<%= "photo[skus][][variant_value]" if custom %>"
+             placeholder="<%= sku.variant_label || "Variant" %>"
+             value="<%= custom ? variant_value : "" %>"
+             maxlength="100"
+             data-action="processing#variantOtherChanged"
+             style="<%= "display:none;" unless custom %>">
+    </div>
+  <% else %>
+    <%# Required even with no variants: Rails groups photo[skus][][…] into
+        hashes by "a repeating key starts a new hash", so every row must
+        contribute the same key set or values merge across rows. %>
+    <input type="hidden" name="photo[skus][][variant_value]" value="">
+  <% end %>
+
   <button type="button" class="btn btn--ghost btn--sm" data-action="processing#togglePin" data-role="pin">
-    📍 <span data-role="pin-label"><%= photo_sku.pinned? ? "Unpin" : "Pin" %></span>
+    📍 <span data-role="pin-label"><%= pinned ? "Unpin" : "Pin" %></span>
   </button>
   <button type="button" class="chip__remove" data-action="processing#removeSku" aria-label="Remove">×</button>
 </div>

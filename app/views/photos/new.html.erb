@@ -25,8 +25,21 @@
              style="display:block; border:1.5px dashed var(--border); border-radius:12px; padding:28px; text-align:center; cursor:pointer; background:var(--canvas); transition:border-color .15s, background .15s;">
         <div style="font-size:28px; margin-bottom:6px;">📸</div>
         <div style="font:600 14px 'Sora',sans-serif;">Click to choose photos, drop them here, or add a .zip</div>
-        <div class="text-mono-sm" style="margin-top:4px;">JPG, PNG, WebP, GIF or a ZIP archive — as many as you like</div>
-        <%= file_field_tag "photo[images][]", multiple: true, accept: "image/*,.zip,application/zip", id: "photo_images",
+        <%# The HEIC line tracks what this deployment can actually decode, so it
+            never promises support the image can't deliver. %>
+        <% heic = Photos::ImageSupport.heic_available? %>
+        <div class="text-mono-sm" style="margin-top:4px;">
+          JPG, PNG<%= ", HEIC" if heic %>, WebP, GIF or a ZIP archive — as many as you like
+        </div>
+        <div class="text-mono-sm" style="margin-top:4px; color:var(--muted-2);">
+          <% if heic %>
+            iPhone HEIC photos are converted automatically — upload them as they are
+          <% else %>
+            iPhone HEIC isn’t supported yet — set Settings → Camera → Formats → Most Compatible
+          <% end %>
+        </div>
+        <%= file_field_tag "photo[images][]", multiple: true,
+              accept: "image/*,.heic,.heif,.zip,application/zip", id: "photo_images",
               data: { upload_target: "input", action: "upload#preview" }, style: "display:none;" %>
       </label>
     </div>
@@ -47,11 +60,28 @@
                 data: { catalog_select_target: "plan", action: "catalog-select#planChanged" } %>
         </div>
         <div class="field" style="margin:0; grid-column:1 / -1;">
-          <label class="label" for="photo_room_id">Room</label>
-          <%= select_tag "photo[room_id]", "".html_safe, id: "photo_room_id", disabled: true,
-                data: { catalog_select_target: "room", action: "catalog-select#roomChanged" } %>
+          <label class="label" for="photo_room_type_id">Room</label>
+          <%# Global vocabulary — available even before a community is synced. %>
+          <%= select_tag "photo[room_type_id]",
+                options_from_collection_for_select(@room_types, :id, :name),
+                include_blank: "Any room", id: "photo_room_type_id" %>
         </div>
       </div>
+
+      <%# Default on: re-uploading from a phone album that's already organised
+          by community and plan is how designers add placement to photos that
+          are already here. Tags and pins are never touched. %>
+      <label class="text-mono-sm" style="display:flex; gap:8px; align-items:flex-start; margin-top:14px; cursor:pointer;">
+        <%= hidden_field_tag "photo[update_existing]", "0" %>
+        <%= check_box_tag "photo[update_existing]", "1", true %>
+        <span>
+          Update photos I’ve already uploaded<br>
+          <span style="color:var(--muted);">
+            If a photo is already in the library, apply this location to it instead of adding a second copy.
+            Existing tags and pins are kept.
+          </span>
+        </span>
+      </label>
     </fieldset>
 
     <div data-upload-target="preview" class="photo-grid" style="margin-bottom:16px;"></div>

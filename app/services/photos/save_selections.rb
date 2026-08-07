@@ -9,19 +9,28 @@ module Photos
 
     def self.call(...) = new(...).call
 
-    # sku_entries: array of { id:, pos_x:, pos_y: } hashes (string keys ok).
-    def initialize(photo:, community_id:, floorplan_id:, sku_entries:, user:, room_id: nil)
+    # sku_entries: array of { id:, pos_x:, pos_y:, variant_value: } hashes
+    # (string keys ok). variant_value is the finish/colour/size chosen for that
+    # product in this photo, blank when the product has no variants.
+    def initialize(photo:, community_id:, floorplan_id:, sku_entries:, user:,
+      room_id: nil, room_type_id: nil)
       @photo = photo
       @community_id = community_id.presence
       @floorplan_id = floorplan_id.presence
       @room_id = room_id.presence
+      @room_type_id = room_type_id.presence
       @sku_entries = Array(sku_entries)
       @user = user
     end
 
     def call
       Photo.transaction do
-        @photo.update!(community_id: resolved_community_id, floorplan_id: @floorplan_id, room_id: @room_id)
+        # room_id is deliberately not written. The processing screen no longer
+        # offers the catalog-room picker, so it submits nothing for it — and
+        # assigning nil would erase the room captured at upload time. It stays
+        # as whatever ingest recorded, and still feeds room-type derivation.
+        @photo.update!(community_id: resolved_community_id, floorplan_id: @floorplan_id,
+          room_type_id: resolved_room_type_id)
         reconcile_skus
         @photo.mark_complete!(@user)
       end
@@ -41,20 +50,41 @@ module Photos
         (@room_id && Room.where(id: @room_id).pick(:community_id))
     end
 
+    # A specific catalog room already knows its type, so choosing one is enough
+    # — the designer doesn't have to set both.
+    def resolved_room_type_id
+      @room_type_id || (@room_id && Room.where(id: @room_id).pick(:room_type_id))
+    end
+
     # Rebuild the photo's SKU tags to exactly match the submitted selection,
-    # preserving/updating pin coordinates and dropping any deselected SKUs.
+    # preserving/updating pin coordinates and dropping any deselected tags.
+    #
+    # Keyed on (sku_id, variant_value), not sku_id alone: one product can appear
+    # twice in a photo under two finishes, and keying on the sku alone would let
+    # the second silently overwrite the first.
     def reconcile_skus
-      incoming = @sku_entries.index_by { |e| e[:id].presence&.to_i || e["id"].to_i }
-      incoming.delete(0)
+      incoming = @sku_entries.filter_map { |entry|
+        sku_id = value(entry, :id).to_i
+        next if sku_id.zero?
 
-      @photo.photo_skus.where.not(sku_id: incoming.keys).destroy_all
+        [ [ sku_id, value(entry, :variant_value).to_s.strip ], entry ]
+      }.to_h
 
-      incoming.each do |sku_id, entry|
-        photo_sku = @photo.photo_skus.find_or_initialize_by(sku_id: sku_id)
-        photo_sku.pos_x = (entry[:pos_x] || entry["pos_x"]).presence
-        photo_sku.pos_y = (entry[:pos_y] || entry["pos_y"]).presence
+      keep = incoming.keys
+      @photo.photo_skus.find_each do |photo_sku|
+        photo_sku.destroy unless keep.include?([ photo_sku.sku_id, photo_sku.variant_value ])
+      end
+
+      incoming.each do |(sku_id, variant_value), entry|
+        photo_sku = @photo.photo_skus.find_or_initialize_by(sku_id: sku_id, variant_value: variant_value)
+        photo_sku.pos_x = value(entry, :pos_x).presence
+        photo_sku.pos_y = value(entry, :pos_y).presence
         photo_sku.save!
       end
     end
+
+    # Entries arrive from params with string keys; callers and tests may use
+    # symbols.
+    def value(entry, key) = entry[key] || entry[key.to_s]
   end
 end

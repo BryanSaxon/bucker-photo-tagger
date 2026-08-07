@@ -1,18 +1,27 @@
 class PhotosController < ApplicationController
-  before_action :set_photo, only: %i[show update destroy sku_search]
+  before_action :set_photo, only: %i[show update destroy sku_search selected_sku_row]
 
   # Index defaults to photos that still need processing, with a toggle for
-  # completed photos and a name search.
+  # completed photos, a name search, and a queue of photos tagged before
+  # finishes could be recorded.
   def index
     @show_completed = params[:status] == "complete"
+    @missing_variants = params[:filter] == "missing_variants"
     @query = params[:q].to_s.strip
 
-    scope = @show_completed ? Photo.complete : Photo.unprocessed
-    scope = scope.search(@query).recent.with_attached_image
-    @pagy, @photos = pagy(scope)
+    # Count over the SEARCHED set, not the whole library. Previously the tabs
+    # showed unfiltered totals, so a search could read "Completed 812" above an
+    # empty grid — and a completed photo was unreachable from this tab, which
+    # looks like the photo isn't in the system at all.
+    matched = Photo.search(@query)
+    counts = matched.group(:status).count
+    @unprocessed_count = counts["unprocessed"].to_i
+    @complete_count = counts["complete"].to_i
+    @missing_variants_count = matched.complete.missing_variants.count
 
-    @unprocessed_count = Photo.unprocessed.count
-    @complete_count = Photo.complete.count
+    scope = @show_completed ? matched.complete : matched.unprocessed
+    scope = scope.missing_variants if @missing_variants
+    @pagy, @photos = pagy(scope.recent.with_attached_image)
   end
 
   def new
@@ -29,13 +38,13 @@ class PhotosController < ApplicationController
       signed_ids: params.dig(:photo, :signed_ids),
       community_id: upload_params[:community_id],
       floorplan_id: upload_params[:floorplan_id],
-      room_id: upload_params[:room_id]
+      room_id: upload_params[:room_id],
+      room_type_id: upload_params[:room_type_id],
+      update_existing: upload_params[:update_existing] != "0"
     )
 
-    if result.count.positive?
-      notice = "Uploaded #{result.count} #{'photo'.pluralize(result.count)}. Ready to process."
-      notice += " #{result.errors.size} #{'file'.pluralize(result.errors.size)} skipped." if result.errors.any?
-      redirect_to photos_path, notice: notice
+    if result.count.positive? || result.updated_count.positive?
+      redirect_to photos_path, notice: upload_notice(result)
     else
       @photo = Photo.new
       load_upload_data
@@ -55,6 +64,7 @@ class PhotosController < ApplicationController
       community_id: photo_params[:community_id],
       floorplan_id: photo_params[:floorplan_id],
       room_id: photo_params[:room_id],
+      room_type_id: photo_params[:room_type_id],
       sku_entries: photo_params[:skus] || [],
       user: Current.user
     )
@@ -80,14 +90,46 @@ class PhotosController < ApplicationController
     @query = params[:q].to_s.strip
     @scoped = ActiveModel::Type::Boolean.new.cast(params[:scoped])
 
-    skus = Sku.search(@query).in_category(params[:category])
-    skus = skus.for_context(community_id: @photo.community_id, room_id: @photo.room_id) if @scoped
-    @skus = skus.ordered.limit(50)
-    @selected_ids = @photo.sku_ids
-    render partial: "photos/sku_results", locals: { skus: @skus, selected_ids: @selected_ids }
+    # Only offer things that can actually appear in a photograph, collapsed to
+    # one row per visual thing — the price list carries a row per line item.
+    skus = Sku.taggable.search(@query).in_category(params[:category])
+    skus = skus.for_context(community_id: @photo.community_id, room_type_id: @photo.room_type_id) if @scoped
+    @group_sizes = Sku.group_sizes(skus)
+    @skus = skus.representatives.ordered.limit(50)
+    # Keyed on the GROUP, not the sku id. Tags made before grouping existed can
+    # sit on a sibling rather than the representative the picker now shows, and
+    # comparing ids would offer that same product again as if untagged.
+    # A product with variants stays selectable regardless — the same faucet in
+    # two finishes is two legitimate tags.
+    @selected_keys = @photo.photo_skus.includes(:sku).map { |ps| [ ps.sku.group_key, ps.variant_value ] }
+    render partial: "photos/sku_results",
+      locals: { skus: @skus, selected_keys: @selected_keys, group_sizes: @group_sizes }
+  end
+
+  # One row of the selected-SKU list, rendered on the server so the partial
+  # stays the single source of truth for the markup — the variant picker's
+  # options come straight off the Sku record rather than being rebuilt in JS.
+  def selected_sku_row
+    sku = Sku.find(params[:sku_id])
+    render partial: "photos/selected_sku",
+      locals: { sku: sku, variant_value: "", pos_x: nil, pos_y: nil }
   end
 
   private
+
+  # Re-uploads are reported as their own outcome: a designer re-uploading from
+  # an organised phone album wants to know the placement landed, not that
+  # nothing happened.
+  def upload_notice(result)
+    parts = []
+    parts << "Uploaded #{result.count} #{'photo'.pluralize(result.count)}." if result.count.positive?
+    if result.updated_count.positive?
+      parts << "#{result.updated_count} #{'photo'.pluralize(result.updated_count)} " \
+        "already in the library — placement updated."
+    end
+    parts << "#{result.errors.size} #{'file'.pluralize(result.errors.size)} skipped." if result.errors.any?
+    parts.join(" ")
+  end
 
   def set_photo
     @photo = Photo.find(params[:id])
@@ -98,29 +140,34 @@ class PhotosController < ApplicationController
   # community is known (directly or via a chosen plan).
   def load_upload_data
     @communities = Community.ordered
+    @room_types = RoomType.available.ordered
     @floorplans = Floorplan.ordered.pluck(:id, :name, :elevation, :community_id)
     @rooms = Room.order(:room_desc, :room_code).pluck(:id, :room_desc, :room_code, :community_id)
   end
 
   def load_processing_data
     @communities = Community.ordered
+    @room_types = RoomType.available.ordered
     @floorplans = Floorplan.includes(:community).ordered
-    # All rooms are rendered (filtered client-side by community, like floorplans)
-    # so a room stays selectable even if the community is changed here.
-    @rooms = Room.order(:room_desc, :room_code)
-    @photo_skus = @photo.photo_skus.includes(:sku)
+    # Ordered so pin numbering stays stable across reloads.
+    @photo_skus = @photo.photo_skus.includes(:sku).order(:id)
     @category_codes = Sku.category_codes
     # Does the photo's context actually resolve to any products? Drives whether
     # the "limit to this location" scoping is offered/defaulted on.
-    @context_scope_available = @photo.community_id.present? &&
-      Sku.for_context(community_id: @photo.community_id, room_id: @photo.room_id).exists?
+    # Offer the scoping toggle only when the photo's context resolves to
+    # something — an empty "limit to this location" reads as a broken filter.
+    @context_scope_available = (@photo.community_id.present? || @photo.room_type_id.present?) &&
+      Sku.taggable.for_context(community_id: @photo.community_id,
+        room_type_id: @photo.room_type_id).exists?
   end
 
   def upload_params
-    params.require(:photo).permit(:community_id, :floorplan_id, :room_id)
+    params.require(:photo).permit(:community_id, :floorplan_id, :room_id, :room_type_id,
+      :update_existing)
   end
 
   def photo_params
-    params.require(:photo).permit(:community_id, :floorplan_id, :room_id, skus: %i[id pos_x pos_y])
+    params.require(:photo).permit(:community_id, :floorplan_id, :room_id, :room_type_id,
+      skus: %i[id pos_x pos_y variant_value])
   end
 end

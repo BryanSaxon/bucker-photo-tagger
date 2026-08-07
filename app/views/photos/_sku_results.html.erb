@@ -1,15 +1,31 @@
 <% if skus.any? %>
   <% skus.each do |sku| %>
+    <% siblings = group_sizes[sku.group_key].to_i %>
+    <% choices = sku.grouped_attribute_choices %>
+    <%# A product with variants stays selectable after the first pick: the same
+        faucet can appear twice in one photo under two finishes. One without
+        variants can only be tagged once, so it greys out. %>
     <button type="button" class="sku-result"
             data-action="processing#addSku"
             data-sku-id="<%= sku.id %>"
             data-code="<%= sku.product_code %>"
             data-desc="<%= sku.display_name %>"
-            <%= "disabled" if selected_ids.include?(sku.id) %>>
-      <span class="sku-result__code"><%= sku.product_code %></span>
+            data-has-variants="<%= choices.any? %>"
+            <%= "disabled" if choices.empty? && selected_keys.include?([ sku.group_key, "" ]) %>>
       <span class="sku-result__desc"><%= sku.display_name %></span>
-      <% if sku.category_code.present? %>
-        <span class="sku-result__cat"><%= sku.category_code %></span>
+      <%# The subcategory is what separates otherwise-identical rows —
+          "Cabinets" vs "Cabinets - Island" — so it leads over the raw code. %>
+      <% if sku.subcategory_label.present? %>
+        <span class="sku-result__cat"><%= sku.subcategory_label %></span>
+      <% end %>
+      <% if choices.any? %>
+        <span class="sku-result__variant">
+          <%= sku.variant_label || "Options" %> · <%= choices.size %>
+        </span>
+      <% end %>
+      <% if siblings > 1 %>
+        <%# One visual thing, several priceable line items behind it. %>
+        <span class="sku-result__code" title="<%= siblings %> catalog line items"><%= siblings %>×</span>
       <% end %>
     </button>
   <% end %>
