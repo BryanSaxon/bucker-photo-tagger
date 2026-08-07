@@ -273,6 +273,41 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
     assert_select ".empty-state a", count: 0
   end
 
+  # ---- Grouping vs existing tags ----
+
+  # Tags made before grouping existed sit on whichever line item was picked,
+  # which may not be the representative the picker now shows. Comparing sku ids
+  # would offer that same product again as though it were untagged.
+  test "a tag on a non-representative sku still marks its group as selected" do
+    rep = Sku.create!(product_code: "CAB1", short_description: "Arbor Painted",
+      category_code: "07CabTop", subcategory_code: "12Cabs")
+    sibling = Sku.create!(product_code: "CAB2", short_description: "Arbor Painted",
+      category_code: "07CabTop", subcategory_code: "12Cabs")
+    photo = create_photo(name: "Kitchen")
+    PhotoSku.create!(photo: photo, sku: sibling) # the older, non-representative tag
+    sign_in_as(@user)
+
+    get sku_search_photo_path(photo, q: "arbor")
+
+    assert_response :success
+    assert_select "button.sku-result[data-sku-id=?][disabled]", rep.id.to_s
+  end
+
+  test "an existing tag on a now-untaggable sku still renders on the photo" do
+    junk = Sku.create!(product_code: "OLD1", short_description: "Hood Insert",
+      category_code: "99Unsell")
+    photo = create_photo(name: "Kitchen")
+    PhotoSku.create!(photo: photo, sku: junk, pos_x: 0.3, pos_y: 0.3)
+    sign_in_as(@user)
+
+    get photo_path(photo)
+
+    assert_response :success
+    # Filtered out of the picker, but the tag itself is never hidden or lost.
+    assert_match "Hood Insert", @response.body
+    assert_not_includes Sku.taggable, junk
+  end
+
   # ---- Room types ----
 
   test "saving persists the chosen room type" do

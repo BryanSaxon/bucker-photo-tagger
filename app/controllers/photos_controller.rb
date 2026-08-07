@@ -96,9 +96,12 @@ class PhotosController < ApplicationController
     skus = skus.for_context(community_id: @photo.community_id, room_id: @photo.room_id) if @scoped
     @group_sizes = Sku.group_sizes(skus)
     @skus = skus.representatives.ordered.limit(50)
-    # (sku_id, variant) pairs — a product with variants can be added more than
-    # once, so it stays selectable after the first pick.
-    @selected_keys = @photo.photo_skus.pluck(:sku_id, :variant_value)
+    # Keyed on the GROUP, not the sku id. Tags made before grouping existed can
+    # sit on a sibling rather than the representative the picker now shows, and
+    # comparing ids would offer that same product again as if untagged.
+    # A product with variants stays selectable regardless — the same faucet in
+    # two finishes is two legitimate tags.
+    @selected_keys = @photo.photo_skus.includes(:sku).map { |ps| [ ps.sku.group_key, ps.variant_value ] }
     render partial: "photos/sku_results",
       locals: { skus: @skus, selected_keys: @selected_keys, group_sizes: @group_sizes }
   end
