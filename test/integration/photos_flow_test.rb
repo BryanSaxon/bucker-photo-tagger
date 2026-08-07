@@ -127,19 +127,34 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
     assert_select "select#photo_community_id"
     assert_select "select#photo_floorplan_id"
     assert_select "select#photo_room_type_id"
-    # The catalog-code refinement, shown because this community has synced rooms.
-    assert_select "select#photo_room_id"
+    # The catalog-code picker is gone: designers place a photo by room type.
+    assert_select "select#photo_room_id", count: 0
   end
 
-  test "the upload page hides the catalog room refinement when none are synced" do
+  test "the processing screen offers room type, with community and plan optional" do
     RoomType.load_vocabulary!
+    photo = create_photo(name: "Kitchen")
     sign_in_as(@user)
 
-    get new_photo_path
+    get photo_path(photo)
 
     assert_response :success
-    assert_select "select#photo_room_type_id"
-    assert_select "select#photo_room_id", count: 0
+    assert_select "select[name=?]", "photo[room_type_id]"
+    assert_select "details summary", text: /Community/
+    assert_select "select[name=?]", "photo[room_id]", count: 0
+  end
+
+  test "community and plan captured at upload are shown expanded, not hidden" do
+    RoomType.load_vocabulary!
+    photo = create_photo(name: "Kitchen")
+    photo.update!(community: @community, floorplan: @floorplan)
+    sign_in_as(@user)
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_select "details[open]"
+    assert_select "details summary", text: /Bradbury/
   end
 
   test "uploading with a location stamps it on every created photo" do
@@ -171,13 +186,16 @@ class PhotosFlowTest < ActionDispatch::IntegrationTest
     assert_equal @community.id, created.community_id
   end
 
-  test "saving selections persists the chosen room" do
+  # The processing screen no longer submits room_id, so saving must leave the
+  # room captured at upload alone rather than assigning nil over it.
+  test "saving does not erase the catalog room recorded at upload" do
     room = @community.rooms.create!(room_code: "KIT", room_desc: "Kitchen")
     photo = create_photo(name: "Kitchen")
+    photo.update!(community: @community, room: room)
     sign_in_as(@user)
 
     patch photo_path(photo), params: { photo: {
-      community_id: @community.id, floorplan_id: @floorplan.id, room_id: room.id, skus: []
+      community_id: @community.id, floorplan_id: @floorplan.id, skus: []
     } }
 
     assert_redirected_to photos_path

@@ -75,9 +75,13 @@ class Sku < ApplicationRecord
   # to speed up tagging. A room (the most specific) limits to products selected
   # in that room across the community's lots; a community limits to products in
   # its priced options or any lot selection. With neither, returns everything.
-  scope :for_context, ->(community_id: nil, room_id: nil) {
-    if room_id.present?
-      selected = LotSelection.where(room_id: room_id).where.not(sku_id: nil).select(:sku_id)
+  scope :for_context, ->(community_id: nil, room_type_id: nil) {
+    if room_type_id.present?
+      # Keyed on room TYPE, not a single catalog room row: ".Bath 2" exists as
+      # 48 rows across 8 communities, so scoping to one of them would miss
+      # everything the same kind of room uses elsewhere.
+      rooms = Room.where(room_type_id: room_type_id).select(:id)
+      selected = LotSelection.where(room_id: rooms).where.not(sku_id: nil).select(:sku_id)
       where(id: selected)
     elsif community_id.present?
       opted = Option.where(community_id: community_id).where.not(sku_id: nil).select(:sku_id)

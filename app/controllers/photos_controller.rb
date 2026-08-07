@@ -93,7 +93,7 @@ class PhotosController < ApplicationController
     # Only offer things that can actually appear in a photograph, collapsed to
     # one row per visual thing — the price list carries a row per line item.
     skus = Sku.taggable.search(@query).in_category(params[:category])
-    skus = skus.for_context(community_id: @photo.community_id, room_id: @photo.room_id) if @scoped
+    skus = skus.for_context(community_id: @photo.community_id, room_type_id: @photo.room_type_id) if @scoped
     @group_sizes = Sku.group_sizes(skus)
     @skus = skus.representatives.ordered.limit(50)
     # Keyed on the GROUP, not the sku id. Tags made before grouping existed can
@@ -149,16 +149,16 @@ class PhotosController < ApplicationController
     @communities = Community.ordered
     @room_types = RoomType.available.ordered
     @floorplans = Floorplan.includes(:community).ordered
-    # All rooms are rendered (filtered client-side by community, like floorplans)
-    # so a room stays selectable even if the community is changed here.
-    @rooms = Room.order(:room_desc, :room_code)
     # Ordered so pin numbering stays stable across reloads.
     @photo_skus = @photo.photo_skus.includes(:sku).order(:id)
     @category_codes = Sku.category_codes
     # Does the photo's context actually resolve to any products? Drives whether
     # the "limit to this location" scoping is offered/defaulted on.
-    @context_scope_available = @photo.community_id.present? &&
-      Sku.for_context(community_id: @photo.community_id, room_id: @photo.room_id).exists?
+    # Offer the scoping toggle only when the photo's context resolves to
+    # something — an empty "limit to this location" reads as a broken filter.
+    @context_scope_available = (@photo.community_id.present? || @photo.room_type_id.present?) &&
+      Sku.taggable.for_context(community_id: @photo.community_id,
+        room_type_id: @photo.room_type_id).exists?
   end
 
   def upload_params

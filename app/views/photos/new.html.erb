@@ -66,13 +66,6 @@
                 options_from_collection_for_select(@room_types, :id, :name),
                 include_blank: "Any room", id: "photo_room_type_id" %>
         </div>
-        <% if @rooms.any? %>
-          <div class="field" style="margin:0; grid-column:1 / -1;">
-            <label class="label" for="photo_room_id">Specific room (optional)</label>
-            <%= select_tag "photo[room_id]", "".html_safe, id: "photo_room_id", disabled: true,
-                  data: { catalog_select_target: "room", action: "catalog-select#roomChanged" } %>
-          </div>
-        <% end %>
       </div>
 
       <%# Default on: re-uploading from a phone album that's already organised

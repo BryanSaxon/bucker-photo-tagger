@@ -25,8 +25,12 @@ module Photos
 
     def call
       Photo.transaction do
+        # room_id is deliberately not written. The processing screen no longer
+        # offers the catalog-room picker, so it submits nothing for it — and
+        # assigning nil would erase the room captured at upload time. It stays
+        # as whatever ingest recorded, and still feeds room-type derivation.
         @photo.update!(community_id: resolved_community_id, floorplan_id: @floorplan_id,
-          room_id: @room_id, room_type_id: resolved_room_type_id)
+          room_type_id: resolved_room_type_id)
         reconcile_skus
         @photo.mark_complete!(@user)
       end
