@@ -2,8 +2,11 @@
     photos#show (persisted tags) and photos#selected_sku_row (newly added), so
     there is no duplicate copy of this markup in JavaScript. %>
 <% pinned = pos_x.present? && pos_y.present? %>
-<% choices = sku.attribute_choices %>
+<%# Union across the line items this row stands for: members usually agree, but
+    where they differ the union is what the designer can actually have. %>
+<% choices = sku.grouped_attribute_choices %>
 <% custom = variant_value.present? && choices.exclude?(variant_value) %>
+<% single = choices.one? && !custom %>
 <div class="selected-sku <%= "is-pinned" if pinned %>"
      data-processing-target="selectedItem"
      data-sku-id="<%= sku.id %>"
@@ -20,7 +23,14 @@
     <span class="selected-sku__desc"><%= sku.display_name %></span>
   </div>
 
-  <% if choices.any? %>
+  <% if single %>
+    <%# One choice is not a choice. Record it and state it, rather than asking
+        the designer to pick from a dropdown of one. %>
+    <input type="hidden" name="photo[skus][][variant_value]" value="<%= choices.first %>">
+    <span class="selected-sku__fixed text-mono-sm">
+      <%= sku.variant_label || "Variant" %>: <strong><%= choices.first %></strong>
+    </span>
+  <% elsif choices.any? %>
     <div class="selected-sku__variant" data-role="variant">
       <select class="select select--sm" data-role="variant-select"
               name="<%= "photo[skus][][variant_value]" unless custom %>"

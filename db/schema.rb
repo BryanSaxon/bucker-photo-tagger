@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_06_000004) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_06_000005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -262,6 +262,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000004) do
     t.text "attribute1"
     t.string "attribute1_desc"
     t.string "category_code"
+    t.string "category_name"
     t.datetime "created_at", null: false
     t.string "image_file_id"
     t.string "image_filename"
@@ -269,14 +270,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000004) do
     t.string "image_mimetype"
     t.integer "images_count", default: 0, null: false
     t.string "product_code", null: false
+    t.boolean "sellable", default: true, null: false
     t.string "short_description"
     t.string "source_modified_at"
     t.string "subcategory_code"
+    t.string "subcategory_name"
     t.datetime "updated_at", null: false
     t.index ["attribute1"], name: "index_skus_on_attribute1_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["category_code"], name: "index_skus_on_category_code"
     t.index ["product_code"], name: "index_skus_on_product_code", unique: true
     t.index ["product_code"], name: "index_skus_on_product_code_trgm", opclass: :gin_trgm_ops, using: :gin
+    t.index ["sellable"], name: "index_skus_on_sellable"
     t.index ["short_description"], name: "index_skus_on_short_description_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["subcategory_code"], name: "index_skus_on_subcategory_code"
   end

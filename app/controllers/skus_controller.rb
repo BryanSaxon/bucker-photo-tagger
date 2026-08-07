@@ -2,8 +2,17 @@ class SkusController < ApplicationController
   # The SKU library: browse/search the synced catalog and see sync status.
   def index
     @query = params[:q].to_s.strip
-    @pagy, @skus = pagy(Sku.search(@query).ordered)
+    # The catalog is an ERP price list; by default show only what a designer
+    # could actually tag. "Show everything" is there for reference.
+    @show_all = params[:all] == "1"
+
+    scope = (@show_all ? Sku.all : Sku.taggable).search(@query)
+    # One row per visual thing, with how many line items it stands for.
+    @group_sizes = Sku.group_sizes(scope)
+    @pagy, @skus = pagy(scope.representatives.ordered)
+
     @total = Sku.count
+    @taggable_total = Sku.taggable.count
     @latest_sync = SkuSync.latest
   end
 

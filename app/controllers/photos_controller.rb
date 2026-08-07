@@ -90,13 +90,17 @@ class PhotosController < ApplicationController
     @query = params[:q].to_s.strip
     @scoped = ActiveModel::Type::Boolean.new.cast(params[:scoped])
 
-    skus = Sku.search(@query).in_category(params[:category])
+    # Only offer things that can actually appear in a photograph, collapsed to
+    # one row per visual thing — the price list carries a row per line item.
+    skus = Sku.taggable.search(@query).in_category(params[:category])
     skus = skus.for_context(community_id: @photo.community_id, room_id: @photo.room_id) if @scoped
-    @skus = skus.ordered.limit(50)
+    @group_sizes = Sku.group_sizes(skus)
+    @skus = skus.representatives.ordered.limit(50)
     # (sku_id, variant) pairs — a product with variants can be added more than
     # once, so it stays selectable after the first pick.
     @selected_keys = @photo.photo_skus.pluck(:sku_id, :variant_value)
-    render partial: "photos/sku_results", locals: { skus: @skus, selected_keys: @selected_keys }
+    render partial: "photos/sku_results",
+      locals: { skus: @skus, selected_keys: @selected_keys, group_sizes: @group_sizes }
   end
 
   # One row of the selected-SKU list, rendered on the server so the partial
