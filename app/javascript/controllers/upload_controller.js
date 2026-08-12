@@ -38,6 +38,12 @@ export default class extends Controller {
   // single Promise.all over every file, so the first failure abandoned the rest
   // and fell back to pushing EVERY file's bytes through the web process.
   async submit(event) {
+    // requestSubmit() fires `submit`, so the fallback below re-enters here with
+    // the failed images back in the input. Without this guard they are uploaded
+    // directly again, fail again, and re-submit again — an endless loop that
+    // never reaches the server and leaves the button disabled.
+    if (this.fallingBack) return
+
     const files = Array.from(this.inputTarget.files || [])
     // Carry each file's original position so its preview card can be updated.
     const images = files.map((file, index) => ({ file, index })).filter(({ file }) => this.isImage(file))
@@ -74,6 +80,9 @@ export default class extends Controller {
     failed.forEach((f) => dt.items.add(f))
     this.inputTarget.files = dt.files
     this.setBusy(null)
+    // Send the failed images to the server as bytes rather than retrying the
+    // direct upload that just rejected them.
+    this.fallingBack = failed.length > 0
     this.element.requestSubmit()
   }
 
@@ -90,7 +99,9 @@ export default class extends Controller {
     if (!card) return
     card.dataset.uploadState = state
     const badge = card.querySelector("[data-role=upload-state]")
-    if (badge) badge.textContent = state === "done" ? "✓ Uploaded" : "✕ Failed — will retry"
+    // A failed direct upload is not retried — the file is sent to the server as
+    // bytes instead, so the card should say what actually happens next.
+    if (badge) badge.textContent = state === "done" ? "✓ Uploaded" : "↑ Sending via server"
   }
 
   uploadFile(file) {
