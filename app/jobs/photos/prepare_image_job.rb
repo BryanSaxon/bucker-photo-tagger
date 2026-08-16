@@ -13,7 +13,16 @@ module Photos
     discard_on ActiveRecord::RecordNotFound
     retry_on Vips::Error, wait: :polynomially_longer, attempts: 3
 
-    CONVERTIBLE_TYPES = %w[image/heic image/heif].freeze
+    CONVERTIBLE_TYPES = ImageSupport::CONVERTIBLE_TYPES
+
+    # How long the replaced HEIC blob sticks around. A grid page rendered just
+    # before the conversion still holds thumbnail URLs for the original, and the
+    # browser loads them lazily as the processor scrolls. Purging immediately
+    # meant those requests downloaded the blob, spent seconds transforming it,
+    # and then blew up inserting the variant record for a row that no longer
+    # existed (PG::ForeignKeyViolation on active_storage_variant_records, a 500
+    # per thumbnail). The grace period lets those stragglers finish.
+    PURGE_GRACE = 30.minutes
 
     def perform(photo_id)
       photo = Photo.find(photo_id)
@@ -47,7 +56,7 @@ module Photos
         )
       end
 
-      original.purge_later
+      ActiveStorage::PurgeJob.set(wait: PURGE_GRACE).perform_later(original)
       Rails.logger.info({ event: "photos.heic_converted", photo_id: photo.id }.to_json)
     end
   end
