@@ -8,6 +8,10 @@ module Photos
   module ImageSupport
     HEIC_SUFFIXES = /\.hei[cf]/i
 
+    # Content types Photos::PrepareImageJob rewrites to JPEG on upload. A blob
+    # still carrying one of these is a source that is about to be replaced.
+    CONVERTIBLE_TYPES = %w[ image/heic image/heif ].freeze
+
     def self.heic_available?
       return @heic_available unless @heic_available.nil?
 

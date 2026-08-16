@@ -57,6 +57,16 @@ class Photo < ApplicationRecord
     )
   }
 
+  # Is the attached blob the one we'll keep? A freshly uploaded HEIC still has
+  # Photos::PrepareImageJob's conversion ahead of it, and pointing a thumbnail
+  # at that blob means asking the browser to lazily fetch a representation of a
+  # source that is being replaced and purged — an expensive transform whose
+  # variant record then fails to insert. Grids skip the thumbnail until it's
+  # ready; the job warms it as soon as the conversion lands.
+  def thumbnail_ready?
+    image.attached? && !Photos::ImageSupport::CONVERTIBLE_TYPES.include?(image.blob.content_type)
+  end
+
   # Persist the processor's selections and mark the photo complete.
   def mark_complete!(user)
     update!(status: :complete, processed_by: user, processed_at: Time.current)

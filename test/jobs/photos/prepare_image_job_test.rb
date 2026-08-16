@@ -24,6 +24,23 @@ module Photos
       assert_not ActiveStorage::Blob.exists?(original.id), "the HEIC blob was left behind"
     end
 
+    test "the replaced blob is purged after a grace period, not immediately" do
+      skip "libvips has no HEIF decoder here" unless ImageSupport.heic_available?
+
+      photo = photo_with("sample.heic", "IMG_0044.HEIC", "image/heic")
+      original = photo.image.blob
+
+      # Thumbnail requests for the original can still be in flight — a grid page
+      # rendered before the conversion loads them lazily — and purging out from
+      # under them is what turned into 500s in production.
+      assert_enqueued_with(job: ActiveStorage::PurgeJob, args: [ original ],
+        at: PrepareImageJob::PURGE_GRACE.from_now) do
+        PrepareImageJob.perform_now(photo.id)
+      end
+
+      assert ActiveStorage::Blob.exists?(original.id), "the original was purged straight away"
+    end
+
     test "leaves a JPEG alone and simply warms its thumbnail" do
       photo = photo_with("sample.png", "kitchen.png", "image/png")
       blob = photo.image.blob

@@ -227,6 +227,8 @@ h2.section-title { font: 600 18px/1.2 "Sora", sans-serif; letter-spacing: -.01em
 .photo-card:hover { border-color: var(--gold); box-shadow: 0 4px 18px rgba(0, 0, 0, .08); transform: translateY(-2px); }
 .photo-card__thumb { aspect-ratio: 4 / 3; background: var(--gutter); overflow: hidden; display: block; }
 .photo-card__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Shown while a HEIC upload is still being converted to a displayable JPEG. */
+.photo-card__pending { width: 100%; height: 100%; display: grid; place-items: center; font: 500 11px "IBM Plex Mono", monospace; color: var(--muted-2); text-transform: uppercase; letter-spacing: .06em; }
 .photo-card__body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .photo-card__name { font: 600 14px "Sora", sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .photo-card__meta { font: 500 11px "IBM Plex Mono", monospace; color: var(--muted-2); text-transform: uppercase; letter-spacing: .06em; }
