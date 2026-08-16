@@ -48,7 +48,13 @@ services:
     dockerContext: .
     # HEIC conversion decodes a 12 MP frame to ~48 MB. libvips streams, so this
     # is fine one at a time — measure before widening the queue's concurrency.
-    plan: starter
+    #
+    # Starter (512 MB) was not enough in practice: the worker was killed for
+    # running out of memory four times on 2026-08-11/12 during conversion, and
+    # was moved to Standard by hand on 2026-08-12. This line kept saying
+    # `starter`, so re-applying the blueprint would have quietly put it back on
+    # the plan that OOMs.
+    plan: standard
     dockerCommand: "bundle exec rails solid_queue:start"
     envVars:
       - key: RAILS_ENV
